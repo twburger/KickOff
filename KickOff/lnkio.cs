@@ -6,52 +6,80 @@ namespace KickOff
 {
     public static class lnkio
     {
-        public static string GetShortcutTarget(string file, ref string WorkingDirectory, ref string TargetParameters, ref string ShortcutName, ref bool IsRef)
+        public static string GetShortcutTarget(string FilePath, bool bIsDir, ref string WorkingDirectory, ref string TargetParameters, ref string ShortcutName, ref bool IsRef)
         {
+            string LinkTargetPath = string.Empty;
+
             try
             {
-                string link = string.Empty;
-                WorkingDirectory = string.Empty;
-                TargetParameters = string.Empty;
-                ShortcutName = string.Empty;
-                IsRef = false;
+                if (bIsDir || File.Exists(FilePath))  // never assume thie file exists
+                {
+                    
+                    WorkingDirectory = string.Empty;
+                    TargetParameters = string.Empty;
+                    ShortcutName = string.Empty;
+                    IsRef = false;
 
-                // {name}.appref-ms are Application References. 
-                // Contains text URL for the application, culture, 
-                //processor architecture and key used to sign the application
-                string ext = System.IO.Path.GetExtension(file).ToLower();
-                IsRef = !(ext == ".lnk");
-                if (IsRef && ext != ".appref-ms")
-                {
-                    throw new Exception("Supplied file must be a .LNK or a 'Click Once' application reference .appref-ms file");
-                }
-                else
-                {
-                    if (File.Exists(file))
+                    // Files named {name}.appref-ms are Application References. 
+                    // Contains text URL for the application, culture, 
+                    //processor architecture and key used to sign the application
+                    // These files are simply text and do not have the .lnk format
+                    string ext = System.IO.Path.GetExtension(FilePath).ToLower();
+
+                    // if not a link or reference it's a file or directory
+                    if ( ext != ".lnk" && ext != ".appref-ms")
                     {
+                        /// 
+                        /// Is this an application or a directory? 
+                        /// If so use the path as the target
+                        /// 
+                        IsRef = false;
+                        ShortcutName = System.IO.Path.GetFileName(FilePath);
+                        if (string.IsNullOrEmpty(ShortcutName))
+                            ShortcutName = System.IO.Path.GetDirectoryName(FilePath);
+                        LinkTargetPath = FilePath;
+                        WorkingDirectory = System.IO.Path.GetDirectoryName(FilePath);
+
+                        //throw new Exception(
+                        //    string.Format(
+                        //        "Can not process {0}. Supplied file must " +
+                        //        "be a .LNK or a 'Click Once' application reference .appref-ms file"
+                        //        , FilePath));
+                    }
+                    else
+                    {
+                        IsRef = (ext == ".appref-ms");
+
                         if (IsRef)
                         {
                             //@"rundll32.exe dfshim.dll,ShOpenVerbApplication http://github-windows.s3.amazonaws.com/GitHub.application#GitHub.application, Culture=neutral, PublicKeyToken=317444273a93ac29, processorArchitecture=x86";
                             //@"rundll32.exe dfshim.dll,ShOpenVerbShortcut D:\Users\User\Desktop\GitHub.appref-ms";
 
-                            TargetParameters = System.IO.File.ReadAllText(file, Encoding.Default);
-                            link = "rundll32.exe dfshim.dll,ShOpenVerbApplication "; // + TargetParameters;
-                                                                                     //link = "rundll32.exe dfshim.dll,ShOpenVerbShortcut";
-                                                                                     //link = file;
-                                                                                     //TargetParameters = file;
-                            ShortcutName = System.IO.Path.GetFileName(file);
+                            //TargetParameters = System.IO.File.ReadAllText(FilePath, Encoding.Default);
+                            //LinkTargetPath = "rundll32.exe dfshim.dll,ShOpenVerbApplication "; // + TargetParameters;
+                            //link = "rundll32.exe dfshim.dll,ShOpenVerbShortcut";
+                            //link = file;
+                            //TargetParameters = file;
+
+                            LinkTargetPath = FilePath;
+                            ShortcutName = System.IO.Path.GetFileName(FilePath);
                         }
                         else
                         {
-                            link = GetLnkTarget(file, ref WorkingDirectory, ref TargetParameters, ref ShortcutName);
+                            LinkTargetPath = GetLnkTarget(FilePath, ref WorkingDirectory, ref TargetParameters, ref ShortcutName);
                         }
                     }
                 }
-                return link;
+                else
+                {
+                    throw new Exception("Supplied file does not exist");
+                }
+
+                return LinkTargetPath;
             }
             catch
             {
-                return "";
+                return string.Empty;
             }
         }
 
