@@ -1,18 +1,172 @@
 ﻿using System;
-using System.Text;
 using System.IO;
+using IWshRuntimeLibrary;
 
 namespace KickOff
 {
     public static class lnkio
     {
-        public static string GetShortcutTarget(string FilePath, bool bIsDir, ref string WorkingDirectory, ref string TargetParameters, ref string ShortcutName, ref bool IsRef)
+        public static bool CreateShortcut(LnkData lnkData, string lnkFileName, string pathtoLnk)
+        {
+            bool bLnkCreated = false;
+
+            WshShell shell = new WshShell();
+            try
+            {
+                string shortcutAddress = System.IO.Path.GetFullPath(pathtoLnk);
+                if (null == shortcutAddress || string.Empty == shortcutAddress)
+                {
+                    object shDesktop = (object)"Desktop";
+                    shortcutAddress = (string)shell.SpecialFolders.Item(ref shDesktop);
+                }
+                else {
+                    shortcutAddress = pathtoLnk;
+                }
+
+                shortcutAddress += @"\" + lnkFileName;
+
+                // Do not overwrite
+                if (!System.IO.File.Exists(shortcutAddress))
+                {
+                    IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(shortcutAddress);
+
+                    shortcut.Arguments = lnkData.Arguments;
+                    shortcut.Description = lnkData.Description; // "New shortcut for a Notepad";
+                    //shortcut.FullName = string.Empty;  // FullName is read only
+                    shortcut.Hotkey = lnkData.Hotkey; //"Ctrl+Shift+N";
+                    shortcut.IconLocation = lnkData.IconLocation;
+                    shortcut.RelativePath = lnkData.RelativePath;
+                    shortcut.TargetPath = lnkData.TargetPath; //Environment.GetFolderPath(Environment.SpecialFolder.System) + @"\notepad.exe";
+                    shortcut.WindowStyle = lnkData.WindowStyle; // 1 for default window, 3 for maximize, 7 for minimize
+
+                    shortcut.Save();
+
+                    bLnkCreated = true;
+                }
+            }
+            catch {
+                throw new Exception("Write link error");
+            }
+
+            return (bLnkCreated);
+        }
+
+        public static LnkData ResolveShortcut(string lnkPath)
+        {
+            return (ResolveShortcut(System.IO.Path.GetFileName(System.IO.Path.GetFullPath(lnkPath)),
+                System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(lnkPath))));
+        }
+
+        public static LnkData ResolveShortcut(string lnkFileName, string pathtoLnk)
+        {
+            WshShell shell = new WshShell();
+            LnkData lnkData = null;
+            try
+            {
+                string shortcutAddress = null;
+                if( pathtoLnk != null)
+                    shortcutAddress = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(pathtoLnk));
+                if (null == shortcutAddress || string.Empty == shortcutAddress)
+                {
+                    object shDesktop = (object)"Desktop";
+                    shortcutAddress = (string)shell.SpecialFolders.Item(ref shDesktop);
+                }
+                else {
+                    shortcutAddress = pathtoLnk;
+                }
+
+                shortcutAddress += @"\" + lnkFileName;
+
+                // If it exists
+                if (System.IO.File.Exists(shortcutAddress))
+                {
+                    bool bIsRef = (".appref-ms" == System.IO.Path.GetExtension(shortcutAddress).ToLower());
+                    // if this is a reference use the reference as the target
+                    if (bIsRef)
+                    {
+                        lnkData = new LnkData
+                        {
+                            Arguments = string.Empty,
+                            Description = System.IO.Path.GetFileNameWithoutExtension(shortcutAddress),
+                            FullName = System.IO.Path.GetFileName(shortcutAddress),
+                            Hotkey = string.Empty,
+                            IconLocation = string.Empty,
+                            TargetPath = shortcutAddress,
+                            WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
+                            WorkingDirectory = string.Empty,
+
+                            bIsReference = bIsRef,
+                            bTargetIsDirectory = false,
+                            Bitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
+                            ShortcutAddress = shortcutAddress
+                        };
+                    }
+                    else
+                    {
+                        IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(shortcutAddress);
+
+                        bool bTisD = (System.IO.File.GetAttributes(shortcut.TargetPath).HasFlag(FileAttributes.Directory));
+
+                        lnkData = new LnkData
+                        {
+                            Arguments = shortcut.Arguments,
+                            Description = shortcut.Description, // "New shortcut for a Notepad";
+                            FullName = shortcut.FullName,  // shortcut FullName is read only
+                            Hotkey = shortcut.Hotkey, //"Ctrl+Shift+N";
+                            IconLocation = shortcut.IconLocation,
+                            //RelativePath = shortcut.RelativePath, // The link relative path is set only
+                            TargetPath = shortcut.TargetPath,
+                            WindowStyle = shortcut.WindowStyle, // 1 for default window, 3 for maximize, 7 for minimize
+                            WorkingDirectory = shortcut.WorkingDirectory,
+
+                            bIsReference = bIsRef,
+                            bTargetIsDirectory = bTisD,
+                            Bitmap = ico2bmap.GetBitmapFromFileIcon(bTisD ? shortcutAddress : shortcut.TargetPath),
+                            ShortcutAddress = shortcutAddress
+                        };
+                    }
+                }
+            }
+            catch
+            {
+                lnkData = null;
+            }
+
+            return (lnkData);
+        }
+    } //lnkio
+
+    public class LnkData
+    {
+        public LnkData() { }
+
+        public string Arguments { get; set; }
+        public string Description { get; set; }       // "New shortcut for a Notepad"
+        public string FullName { get; set; }           // FullName is read only in the link
+        public string Hotkey { get; set; }             //"Ctrl+Shift+N";
+        public string IconLocation { get; set; }
+        public string RelativePath { get; set; }        // write only in link
+        public string TargetPath { get; set; }         //Environment.GetFolderPath(Environment.SpecialFolder.System) + @"\notepad.exe";
+        public int WindowStyle { get; set; }           // 1 for default window, 3 for maximize, 7 for minimize
+        public string WorkingDirectory { get; set; }
+
+        public bool bIsReference { get; set; }
+        public bool bTargetIsDirectory { get; set; }
+        public IconBitMap Bitmap { get; set; }
+        public string ShortcutAddress { get; set; }
+    }
+
+}  // namespace
+
+/*
+        public static string GetShortcutTarget(string FilePath, bool bIsDir, ref string WorkingDirectory, 
+            ref string TargetParameters, ref string ShortcutName, ref bool IsRef)
         {
             string LinkTargetPath = string.Empty;
 
             try
             {
-                if (bIsDir || File.Exists(FilePath))  // never assume thie file exists
+                if (bIsDir || System.IO.File.Exists(FilePath))  // never assume thie file exists
                 {
                     
                     WorkingDirectory = string.Empty;
@@ -82,36 +236,54 @@ namespace KickOff
                 return string.Empty;
             }
         }
+*/
+/*
+        //public static string GetLnkTarget(string lnkPath, ref string workDir, 
+        //    ref string targetParams, ref string scName)
+        //{
+        //    // needs reference to Windows\system32\shell32.dll
 
-        public static string GetLnkTarget(string lnkPath, ref string workDir, 
-            ref string targetParams, ref string scName)
-        {
-            // needs reference to Windows\system32\shell32.dll
-
-            //var shl = new Shell32.Shell(); 
-            //lnkPath = System.IO.Path.GetFullPath(lnkPath);
-            //var dir = shl.NameSpace(System.IO.Path.GetDirectoryName(lnkPath));
-            //var itm = dir.Items().Item(System.IO.Path.GetFileName(lnkPath));
-            //var lnk = (Shell32.ShellLinkObject)itm.GetLink;
-            //return lnk.Target.Path;
+        //    //var shl = new Shell32.Shell(); 
+        //    //lnkPath = System.IO.Path.GetFullPath(lnkPath);
+        //    //var dir = shl.NameSpace(System.IO.Path.GetDirectoryName(lnkPath));
+        //    //var itm = dir.Items().Item(System.IO.Path.GetFileName(lnkPath));
+        //    //var lnk = (Shell32.ShellLinkObject)itm.GetLink;
+        //    //return lnk.Target.Path;
 
 
-            // Needs Interop.IWshRuntimeLibrary
+        //    // Needs Interop.IWshRuntimeLibrary
 
-            IWshRuntimeLibrary.IWshShell shell = new IWshRuntimeLibrary.WshShell();
+        //    IWshShell shell = new IWshRuntimeLibrary.WshShell();
 
-            IWshRuntimeLibrary.IWshShortcut shortcut =
-                (IWshRuntimeLibrary.IWshShortcut)shell.CreateShortcut(lnkPath);
+        //    // Create a link
+        //    //IWshRuntimeLibrary.IWshShortcut shortcut = (IWshRuntimeLibrary.IWshShortcut)shell.CreateShortcut(lnkPath);
 
-            scName = shortcut.Description;
-            workDir = shortcut.WorkingDirectory;
-            targetParams = shortcut.Arguments;
-            return shortcut.TargetPath;
-        }
-    }
+        //    //read the link
+        //    IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(lnkPath);
 
-}
+        //    // read a link
+        //    string pathOnly = System.IO.Path.GetDirectoryName(lnkPath);
+        //    string filenameOnly = System.IO.Path.GetFileName(lnkPath);
 
+        //    Shell shell = new Shell();
+        //    Folder folder = shell.NameSpace(pathOnly);
+        //    FolderItem folderItem = folder.ParseName(filenameOnly);
+        //    if (folderItem != null)
+        //    {
+        //        Shell32.ShellLinkObject link = (Shell32.ShellLinkObject)folderItem.GetLink;
+        //        return link.Path;
+        //    }
+        //    // the description is not returned when the shortcut target is a path
+        //    if (string.IsNullOrEmpty(shortcut.Description))
+        //        scName = System.IO.Path.GetFileName(shortcut.TargetPath);
+        //    else
+        //        scName = shortcut.Description;
+        //    workDir = shortcut.WorkingDirectory;
+        //    targetParams = shortcut.Arguments;
+        //    shortcut.
+        //    return shortcut.TargetPath;
+        //}
+*/
 
 /*
 FileStream fileStream = System.IO.File.Open(file, FileMode.Open, FileAccess.Read);
@@ -154,4 +326,4 @@ using (System.IO.BinaryReader fileReader = new BinaryReader(fileStream))
     else {
         return link;
     }
-    */
+*/

@@ -10,7 +10,10 @@ namespace KickOff
 {
     public static class ico2bmap
     {
-        public static Icon ExtractIcon(string file, int number, bool largeIcon)
+        [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+        private static extern int ExtractIconEx(string sFile, int iIndex, out IntPtr piLargeVersion, out IntPtr piSmallVersion, int amountIcons);
+
+        static Icon ExtractIcon(string file, int number, bool largeIcon)
         {
             IntPtr large;
             IntPtr small;
@@ -25,23 +28,18 @@ namespace KickOff
             }
 
         }
-        [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-        private static extern int ExtractIconEx(string sFile, int iIndex, out IntPtr piLargeVersion, out IntPtr piSmallVersion, int amountIcons);
 
         public static IconBitMap GetBitmapFromFileIcon(string file)
         {
             IconBitMap ibm = null;
             System.Drawing.Icon ico = SystemIcons.Error; //.WinLogo;
 
-            FileAttributes attr = File.GetAttributes(file);
-            if (attr.HasFlag(FileAttributes.Directory))
+            // if a directory path is used just get the system icon
+            if (File.GetAttributes(file).HasFlag(FileAttributes.Directory))
             {
                 // get a 'built in' icon for a folder
                 try {
-                    IntPtr largeIcon;
-                    IntPtr smallIcon;
-                    ExtractIconEx("shell32.dll", 4, out largeIcon, out smallIcon, 1);
-                    ico = Icon.FromHandle(largeIcon);
+                    ico = ExtractIcon("shell32.dll", 4, true);
                     //ico = SystemIcons.Hand; //System.Drawing.Icon.ExtractAssociatedIcon(% SystemRoot %\system32\shell32.dll); C:\Windows\System32\imageres.dll % SystemRoot %\system32\DDORes.dll
                 }
                 catch
@@ -64,16 +62,15 @@ namespace KickOff
             try {
                 Bitmap bm = ico.ToBitmap();
 
-                BitmapSource bmsource =
-                  System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
-                  bm.GetHbitmap(), IntPtr.Zero, Int32Rect.Empty,
-                  BitmapSizeOptions.FromEmptyOptions());
+                BitmapSource bmsource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                    bm.GetHbitmap(), IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
 
                 //WriteableBitmap wbitmap = new WriteableBitmap(bmsource);
 
                 ibm = new IconBitMap()
                 {
-                    bitmap = bm,
+                    BitmapSize = bm.Width,
+                    //bitmap = bm,
                     bitmapsource = bmsource
                     //writeablebitmap = wbitmap
                 };
@@ -93,11 +90,10 @@ namespace KickOff
         public IconBitMap()
         {
         }
-        public Bitmap bitmap { get; set; }
-
+        public int BitmapSize { get; set; }
         public BitmapSource bitmapsource { get; set; }
 
+        //public Bitmap bitmap { get; set; }
         //public WriteableBitmap writeablebitmap { get; set; }
-
     }
 }

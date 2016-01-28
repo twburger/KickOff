@@ -1,11 +1,13 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows.Media.Animation;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Windows.Media;
 
 namespace KickOff
 {
@@ -48,50 +50,58 @@ namespace KickOff
 
             this.Content = MainPanel; // create a panel to draw in
         }
+        /// <summary>
+        /// Determine if what is being dragged in can be converted into Kickoff shortcuts
+        /// </summary>
+        /// <param name="eDragEvent"></param>
+        protected override void OnDragEnter(DragEventArgs eDragEvent)
+        {
+            base.OnDragEnter(eDragEvent);
+
+            // Set Effects to notify the drag source what effect
+            // the drag-and-drop operation had.
+            // (MOVE the LNK if CTRL or SHFT is pressed; otherwise, copy.)
+            if (eDragEvent.KeyStates.HasFlag(DragDropKeyStates.ControlKey))
+            {
+                eDragEvent.Effects = DragDropEffects.Move;
+            }
+            else
+            {
+                eDragEvent.Effects = DragDropEffects.Copy;
+            }
+
+            eDragEvent.Handled = false;
+        }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="mouseEvent"></param>
-        protected override void OnDrop(DragEventArgs mouseEvent)
+        /// <param name="eDropEvent"></param>
+        protected override void OnDrop(DragEventArgs eDropEvent)
         {
             // init base code
-            base.OnDrop(mouseEvent);
+            base.OnDrop(eDropEvent);
 
             // If the DataObject contains string data, extract it.
-            //if (mouseEvent.Data.GetDataPresent(DataFormats.FileDrop))
-            if (mouseEvent.Data.GetDataPresent(DataFormats.FileDrop))
+            if (eDropEvent.Data.GetDataPresent(DataFormats.FileDrop))
             {
-                string[] FileList = (string[])mouseEvent.Data.GetData(DataFormats.FileDrop, false);
+                string[] FileList = (string[])eDropEvent.Data.GetData(DataFormats.FileDrop, false);
 
                 /// Create the shortcuts
                 /// 
                 CreateShortCut(FileList);
 
-                // Set Effects to notify the drag source what effect
-                // the drag-and-drop operation had.
-                // (MOVE the LNK if CTRL or SHFT is pressed; otherwise, copy.)
-                if (mouseEvent.KeyStates.HasFlag(DragDropKeyStates.ControlKey) || mouseEvent.KeyStates.HasFlag(DragDropKeyStates.ShiftKey))
-                {
-                    mouseEvent.Effects = DragDropEffects.Move;
-
-                    // Delete the LNK file
-
-                }
-                else
-                {
-                    mouseEvent.Effects = DragDropEffects.Copy;
-                }
-
                 // create the link(s) in main window
                 foreach (Shortcut sci in shortcutItems)
                 {
-                    if ( ! sci.IsRendered ) // not already on display
+                    if (!sci.IsRendered) // not already on display
                     {
                         sci.Name = "_Icon" + IconCounter.ToString(); // used to match image to data
 
-                        sci.Width = sci.Bitmap.bitmap.Width;
-                        sci.Source = sci.Bitmap.bitmapsource;
+                        /// Set the image bitmap
+                        /// 
+                        sci.Width = sci.lnkData.Bitmap.BitmapSize; //.Bitmap.bitmap.Width;
+                        sci.Source = sci.lnkData.Bitmap.bitmapsource; //.Bitmap.bitmapsource;
                         sci.Visibility = Visibility.Visible;
 
                         IconCounter++;
@@ -116,12 +126,10 @@ namespace KickOff
 
                         BeginStoryboard enterBeginStoryboard = new BeginStoryboard
                         {
-                            //Name = sci.Bitmap.iconImage.Name + "_esb",
                             Name = sci.Name + "_esb",
                             Storyboard = mo_storyboard
                         };
 
-                        //NameScope.GetNameScope(this).RegisterName(sci.Bitmap.iconImage.Name + "_esb", enterBeginStoryboard);
                         NameScope.GetNameScope(this).RegisterName(enterBeginStoryboard.Name, enterBeginStoryboard);
 
                         var moe = new EventTrigger(MouseEnterEvent);
@@ -138,9 +146,22 @@ namespace KickOff
                         //sci.Bitmap.iconImage.Triggers.Add(mle);
                         sci.Triggers.Add(mle);
 
-                        // Add mouse event handler to image
-                        //sci.Bitmap.iconImage.MouseLeftButtonUp += IconImage_MouseLeftButtonUp;
+                        // Add mouse event handler to run the shortcut
                         sci.MouseLeftButtonUp += IconImage_MouseLeftButtonUp;
+
+                        // Add a popup to display the link name when the mouse is over
+                        sci.lnkPopup.IsOpen = false;
+                        TextBlock popupText = new TextBlock();
+                        popupText.Text = sci.lnkData.Description;
+                        popupText.Background = Brushes.AntiqueWhite;
+                        popupText.Foreground = Brushes.Black;
+                        sci.lnkPopup.Child = popupText;
+                        //sci.lnkPopup.PlacementTarget = sci.lnkPopup;  // this crashes everything
+                        sci.lnkPopup.Placement = PlacementMode.MousePoint; //.Center;
+
+                        // add handlers for popup
+                        sci.MouseEnter += Sci_MouseEnter;
+                        sci.MouseLeave += Sci_MouseLeave;
 
                         // load and mark as loaded (first or it is not in the collections's copy)
                         sci.IsRendered = true;
@@ -148,58 +169,88 @@ namespace KickOff
                         MainPanel.Children.Add(sci);
                     }
                 }
-            }
+                eDropEvent.Handled = true;
 
-            mouseEvent.Handled = true;
+                return;
+            }
+            else
+                eDropEvent.Handled = false;
         }
 
-        private void IconImage_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        private void Sci_MouseLeave(object sender, System.Windows.Input.MouseEventArgs mouseEvent)
+        {
+            Shortcut sc = (Shortcut)sender;
+            sc.lnkPopup.IsOpen = false;
+
+            mouseEvent.Handled = false;
+        }
+
+        private void Sci_MouseEnter(object sender, System.Windows.Input.MouseEventArgs mouseEvent)
+        {
+            Shortcut sc = (Shortcut)sender;
+            sc.lnkPopup.IsOpen = true;
+
+            mouseEvent.Handled = false;
+        }
+
+        private void IconImage_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs mouseEvent)
         {
             try
             {
-                //Image img = (Image)sender;
-                Shortcut lnkData = (Shortcut)sender;
+                Shortcut scLink = (Shortcut)sender;
 
-                // Look for the data
-                //Shortcut lnkData = (Shortcut)shortcutItems.Where(X => X.InternalName == img.Name).FirstOrDefault();
-
-                if (lnkData != null)
+                if (scLink != null)
                 {
                     try {
                         Process p = null;
 
                         // This is this a reference .appref-ms file or an URL
-                        if (lnkData.FileName.ToLower().Contains(".appref-ms"))
+                        if (scLink.lnkData.bIsReference)
                         {
                             //string n = @"rundll32.exe dfshim.dll,ShOpenVerbApplication http://github-windows.s3.amazonaws.com/GitHub.application#GitHub.application,Culture=neutral,PublicKeyToken=317444273a93ac29,processorArchitecture=x86";
                             //rundll32.exe dfshim.dll,ShOpenVerbShortcut D:\Users\User\Desktop\GitHub
                             //Uri a = new Uri(n);
                             //string b = a.ToString();
-                            //p = Process.Start(lnkData.TargetLinkPath);
-                            p = Process.Start(lnkData.FileName);
+
+                            p = Process.Start(scLink.lnkData.ShortcutAddress);
                         }
                         else
                         {
                             // Prepare the process to run
                             ProcessStartInfo start = new ProcessStartInfo();
                             // Enter in the command line arguments, everything you would enter after the executable name itself
-                            if (File.GetAttributes(lnkData.TargetLinkPath).HasFlag(FileAttributes.Directory)) // a link to a directory
+                            if (scLink.lnkData.bTargetIsDirectory)
                             {
-                                start.Arguments = lnkData.TargetLinkPath;
+
+                                start.Arguments = scLink.lnkData.TargetPath;
                                 start.FileName = "explorer.exe";
-                                start.WorkingDirectory = lnkData.TargetLinkPath;
+                                start.WorkingDirectory = scLink.lnkData.TargetPath;
                             }
                             else {
-                                start.Arguments = lnkData.TargetParameters;
+                                start.Arguments = scLink.lnkData.Arguments;
                                 // Enter the executable to run, including the complete path
-                                start.FileName = lnkData.TargetLinkPath;
-                                start.WorkingDirectory = lnkData.WorkingDirectory;
+                                start.FileName = scLink.lnkData.TargetPath;
+                                /// For cases where the starting working directory is like this:  %HOMEDRIVE%%HOMEPATH%
+                                start.WorkingDirectory = Environment.ExpandEnvironmentVariables(scLink.lnkData.WorkingDirectory);
+                                start.WorkingDirectory = System.IO.Path.GetFullPath(scLink.lnkData.WorkingDirectory);
                             }
                             // Do you want to show a console window?
                             start.WindowStyle = ProcessWindowStyle.Normal;
                             start.CreateNoWindow = true;
                             start.UseShellExecute = false; // do not open reference using shell or args can not be used
-                            p = Process.Start(start);
+
+                            /// Run the programm
+                            /// 
+                            try {
+                                p = Process.Start(start);
+                            } catch
+                            {
+                                /// if the process fails it seems that the current working directory may be to blame
+                                /// For example: The GitBash shortcut uses as command args: "C:\Program Files\Git\git-bash.exe" --cd-to-home
+                                /// and the starting working directory of %HOMEDRIVE%%HOMEPATH%
+                                start.WorkingDirectory = string.Empty;//@"D:\Users\user";
+                                try { p = Process.Start(start); } catch { throw new Exception("Program run error: Program start failed"); }
+                            }
                         }
 
                         if (p == null) // could be that it just does not start 2+ instances
@@ -222,10 +273,10 @@ namespace KickOff
                 else
                 {
                     // bad
-                    if (lnkData != null)
+                    if (scLink != null)
                     {
-                        if (lnkData.Name != null)
-                            throw new Exception("Program run error: Internal data lookup error. The icon has no data or internal name: '" + lnkData.Name + "' is corrupt");
+                        if (scLink.Name != null)
+                            throw new Exception("Program run error: Internal data lookup error. The icon has no data or internal name: '" + scLink.Name + "' is corrupt");
                         else
                             throw new Exception("Program run error: Internal data lookup error. The icon internal name is missing");
                     }
@@ -237,12 +288,10 @@ namespace KickOff
             {
                 throw new Exception("Program run error: Unknown internal error. Program data lookup failed.");
             }
-            return;
-        }
 
-        private object CreateObject(string v)
-        {
-            throw new NotImplementedException();
+            mouseEvent.Handled = true;
+
+            return;
         }
 
         public ObservableCollection<Shortcut> ShortcutItems
@@ -259,58 +308,37 @@ namespace KickOff
         {
             foreach (string FilePath in FileList)
             {
-                // get the link target
-                string WorkDir = string.Empty;
-                string TargetParams = string.Empty;
-                string scName = string.Empty;
-                bool bIsRef = false;
-                bool bIsDir = false;
 
-                System.IO.FileAttributes attr = File.GetAttributes(FilePath);
-                if ( attr.HasFlag(FileAttributes.Directory) )
-                    bIsDir = true;
-
-                if (!File.Exists(FilePath) && ! bIsDir)
+                LnkData lnk = lnkio.ResolveShortcut(FilePath);
+                if (null != lnk)
                 {
-                    throw new Exception(String.Format("File: {0} does not exist",FilePath));
-                }
-                else
-                {
-                    string target = lnkio.GetShortcutTarget(FilePath, bIsDir, ref WorkDir, ref TargetParams, ref scName, ref bIsRef);
-                    if (target.Length > 0)
+                    Shortcut sc = new Shortcut
                     {
-                        var items = shortcutItems.Where(x => x.FileName == FilePath);
+                        lnkData = lnk,
+                        lnkPopup = new Popup(),
+                        IsRendered = false
+                    };
 
-                        if (items.Count() == 0) // the link imported is not in the existing list so add it
-                        {
-                            // Is the link target a directory?
-                            
-                            string IconSourceFile;
+                    var items = shortcutItems.Where(x => x.lnkData.ShortcutAddress == FilePath);
 
-                            // if it's a reference ot the link is to a directory use the lnk file's icon as the image
-                            if (bIsRef || bIsDir)
-                                IconSourceFile = FilePath; // if a reference or a directory use the link itself as the icon source
-                            else if(File.GetAttributes(target).HasFlag(FileAttributes.Directory)) // a link to a directory 
-                                IconSourceFile = FilePath;
-                            else
-                                IconSourceFile = target; // 
+                    if (items.Count() == 0) // the link imported is not in the existing list so add it
+                    {
+                        /// Add a popup to display
+                        sc.lnkPopup = new Popup();
+                        TextBlock popupText = new TextBlock();
+                        popupText.Text = sc.lnkData.Description;
+                        popupText.Background = Brushes.AntiqueWhite;
+                        popupText.Foreground = Brushes.Black;
+                        sc.lnkPopup.Child = popupText;
+                        sc.lnkPopup.PlacementTarget = sc;
+                        sc.lnkPopup.IsOpen = false;
 
-                            shortcutItems.Add(new Shortcut()
-                            {
-                                ShortcutName = scName,
-                                FileName = FilePath,
-                                TargetLinkPath = target,
-                                WorkingDirectory = WorkDir,
-                                TargetParameters = TargetParams,
-                                IsRendered = false,
-                                Bitmap = ico2bmap.GetBitmapFromFileIcon(IconSourceFile)
-                            });
-                        }
+                        /// Add the shortcut to the list
+                        shortcutItems.Add(sc);
                     }
                 }
             }
         }
-
     } //----------- Main Class
 
     public class Shortcut : Image
@@ -320,6 +348,12 @@ namespace KickOff
 
         }
 
+        public LnkData lnkData { get; set; }
+        public bool IsRendered { get; set; }
+        public Popup lnkPopup { get; set; }
+    }
+
+    /*
         public bool IsReference { get; set; }
 
         public string ShortcutName { get; set; }
@@ -336,8 +370,7 @@ namespace KickOff
 
         public IconBitMap Bitmap { get; set; }
 
-        public bool IsRendered { get; set; }
     }
-
+*/
 
 } //------------- Namespace
