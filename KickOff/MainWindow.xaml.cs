@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿// TWB Consulting 2016
+
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Collections.ObjectModel;
