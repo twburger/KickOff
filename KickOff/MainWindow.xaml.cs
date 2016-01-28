@@ -328,7 +328,7 @@ namespace KickOff
                         /// Add a popup to display
                         sc.lnkPopup = new Popup();
                         TextBlock popupText = new TextBlock();
-                        popupText.Text = sc.lnkData.Description;
+                        popupText.Text = System.IO.Path.GetFileNameWithoutExtension(sc.lnkData.ShortcutAddress); //sc.lnkData.Description;// Description is Comment and often missing 
                         popupText.Background = Brushes.AntiqueWhite;
                         popupText.Foreground = Brushes.Black;
                         sc.lnkPopup.Child = popupText;

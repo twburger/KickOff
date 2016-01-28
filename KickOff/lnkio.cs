@@ -64,7 +64,7 @@ namespace KickOff
             try
             {
                 string shortcutAddress = null;
-                if( pathtoLnk != null)
+                if (pathtoLnk != null)
                     shortcutAddress = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(pathtoLnk));
                 if (null == shortcutAddress || string.Empty == shortcutAddress)
                 {
@@ -77,12 +77,11 @@ namespace KickOff
 
                 shortcutAddress += @"\" + lnkFileName;
 
-                // If it exists
-                if (System.IO.File.Exists(shortcutAddress))
+                bool bTisD = (System.IO.File.GetAttributes(shortcutAddress).HasFlag(FileAttributes.Directory));
+                if (bTisD || System.IO.File.Exists(shortcutAddress))
                 {
-                    bool bIsRef = (".appref-ms" == System.IO.Path.GetExtension(shortcutAddress).ToLower());
-                    // if this is a reference use the reference as the target
-                    if (bIsRef)
+                    // the link itself is a directory
+                    if (bTisD)
                     {
                         lnkData = new LnkData
                         {
@@ -95,38 +94,62 @@ namespace KickOff
                             WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
                             WorkingDirectory = string.Empty,
 
-                            bIsReference = bIsRef,
-                            bTargetIsDirectory = false,
+                            bIsReference = false,
+                            bTargetIsDirectory = true,
                             Bitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
                             ShortcutAddress = shortcutAddress
                         };
                     }
                     else
                     {
-                        IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(shortcutAddress);
-
-                        bool bTisD = (System.IO.File.GetAttributes(shortcut.TargetPath).HasFlag(FileAttributes.Directory));
-
-                        lnkData = new LnkData
+                        bool bIsRef = (".appref-ms" == System.IO.Path.GetExtension(shortcutAddress).ToLower());
+                        // if this is a reference use the reference as the target
+                        if (bIsRef)
                         {
-                            Arguments = shortcut.Arguments,
-                            Description = shortcut.Description, // "New shortcut for a Notepad";
-                            FullName = shortcut.FullName,  // shortcut FullName is read only
-                            Hotkey = shortcut.Hotkey, //"Ctrl+Shift+N";
-                            IconLocation = shortcut.IconLocation,
-                            //RelativePath = shortcut.RelativePath, // The link relative path is set only
-                            TargetPath = shortcut.TargetPath,
-                            WindowStyle = shortcut.WindowStyle, // 1 for default window, 3 for maximize, 7 for minimize
-                            WorkingDirectory = shortcut.WorkingDirectory,
+                            lnkData = new LnkData
+                            {
+                                Arguments = string.Empty,
+                                Description = System.IO.Path.GetFileNameWithoutExtension(shortcutAddress),
+                                FullName = System.IO.Path.GetFileName(shortcutAddress),
+                                Hotkey = string.Empty,
+                                IconLocation = string.Empty,
+                                TargetPath = shortcutAddress,
+                                WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
+                                WorkingDirectory = string.Empty,
 
-                            bIsReference = bIsRef,
-                            bTargetIsDirectory = bTisD,
-                            Bitmap = ico2bmap.GetBitmapFromFileIcon(bTisD ? shortcutAddress : shortcut.TargetPath),
-                            ShortcutAddress = shortcutAddress
-                        };
+                                bIsReference = bIsRef,
+                                bTargetIsDirectory = false,
+                                Bitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
+                                ShortcutAddress = shortcutAddress
+                            };
+                        }
+                        else
+                        {
+                            IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(shortcutAddress);
+                            bTisD = (System.IO.File.GetAttributes(shortcut.TargetPath).HasFlag(FileAttributes.Directory));
+                            lnkData = new LnkData
+                            {
+                                Arguments = shortcut.Arguments,
+                                Description = shortcut.Description, // A Comment
+                                FullName = shortcut.FullName,  // shortcut FullName is read only
+                                Hotkey = shortcut.Hotkey, //"Ctrl+Shift+N";
+                                IconLocation = shortcut.IconLocation,
+                                //RelativePath = shortcut.RelativePath, // The link relative path is set only
+                                TargetPath = shortcut.TargetPath,
+                                WindowStyle = shortcut.WindowStyle, // 1 for default window, 3 for maximize, 7 for minimize
+                                WorkingDirectory = shortcut.WorkingDirectory,
+
+                                bIsReference = bIsRef,
+                                bTargetIsDirectory = bTisD,
+                                Bitmap = ico2bmap.GetBitmapFromFileIcon(bTisD ? shortcutAddress : shortcut.TargetPath),
+                                ShortcutAddress = shortcutAddress
+                            };
+
+                        }
                     }
                 }
             }
+            
             catch
             {
                 lnkData = null;
@@ -134,6 +157,7 @@ namespace KickOff
 
             return (lnkData);
         }
+
     } //lnkio
 
     public class LnkData
