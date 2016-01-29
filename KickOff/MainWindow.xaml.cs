@@ -10,6 +10,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Media;
+using System.Windows.Input;
 
 namespace KickOff
 {
@@ -19,16 +20,45 @@ namespace KickOff
     public partial class MainWindow : Window
     {
         private ObservableCollection<Shortcut> shortcutItems;
-
-        //private DockPanel myMainPanel;
         private WrapPanel MainPanel;
-
+        //private Grid MainPanel;
         private int IconCounter;
-
 
         public MainWindow()
         {
             InitializeComponent();
+
+            AllowDrop = true;
+
+            // main control
+
+            //MainPanel = new Grid()
+            //MainPanel.ShowGridLines = true;
+
+            MainPanel = new WrapPanel();
+            MainPanel.Margin = new Thickness(2);
+            MainPanel.Width = Double.NaN; //auto
+            MainPanel.Height = Double.NaN; //auto
+
+            MainPanel.AllowDrop = true;
+
+            //ColumnDefinition gridCol1 = new ColumnDefinition();
+            //ColumnDefinition gridCol2 = new ColumnDefinition();
+            //ColumnDefinition gridCol3 = new ColumnDefinition();
+            //ColumnDefinition gridCol4 = new ColumnDefinition();
+            //MainPanel.ColumnDefinitions.Add(gridCol1);
+            //MainPanel.ColumnDefinitions.Add(gridCol2);
+            //MainPanel.ColumnDefinitions.Add(gridCol3);
+            //MainPanel.ColumnDefinitions.Add(gridCol4);
+
+            //RowDefinition gridRow1 = new RowDefinition();
+            //RowDefinition gridRow2 = new RowDefinition();
+            //RowDefinition gridRow3 = new RowDefinition();
+            //RowDefinition gridRow4 = new RowDefinition();
+            //MainPanel.RowDefinitions.Add(gridRow1);
+            //MainPanel.RowDefinitions.Add(gridRow2);
+            //MainPanel.RowDefinitions.Add(gridRow3);
+            //MainPanel.RowDefinitions.Add(gridRow4);
 
             IconCounter = 0;
 
@@ -42,47 +72,72 @@ namespace KickOff
             Height = 200;
             Width = 400;
 
-            // myMainPanel = new DockPanel();
-            //myMainPanel.LastChildFill = false; // last child stretches to fit remaining space
-
-            MainPanel = new WrapPanel();
-            MainPanel.Margin = new Thickness(5);
-            MainPanel.Width = Double.NaN; //auto
-            MainPanel.Height = Double.NaN; //auto
+            // add handlers for mouse leaving the main window
+            MouseEnter += MainWindow_MouseEnter;
+            MouseLeave += MainWindow_MouseLeave; ;
+            DragEnter += MainWindow_DragEnter;
+            Drop += MainWindow_Drop;
+            DragOver += MainWindow_DragOver;
+            GiveFeedback += MainWindow_GiveFeedback;
 
             this.Content = MainPanel; // create a panel to draw in
         }
-        /// <summary>
-        /// Determine if what is being dragged in can be converted into Kickoff shortcuts
-        /// </summary>
-        /// <param name="eDragEvent"></param>
-        protected override void OnDragEnter(DragEventArgs eDragEvent)
-        {
-            base.OnDragEnter(eDragEvent);
 
-            // Set Effects to notify the drag source what effect
-            // the drag-and-drop operation had.
-            // (MOVE the LNK if CTRL or SHFT is pressed; otherwise, copy.)
-            if (eDragEvent.KeyStates.HasFlag(DragDropKeyStates.ControlKey))
+        private void MainWindow_GiveFeedback(object sender, GiveFeedbackEventArgs e)
+        {
+            if (e.Effects == DragDropEffects.None)
             {
-                eDragEvent.Effects = DragDropEffects.Move;
+                Mouse.SetCursor(Cursors.None);
+                e.UseDefaultCursors = false;
             }
             else
             {
-                eDragEvent.Effects = DragDropEffects.Copy;
+                e.UseDefaultCursors = true;
             }
 
-            eDragEvent.Handled = false;
+            //throw new NotImplementedException();
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="eDropEvent"></param>
-        protected override void OnDrop(DragEventArgs eDropEvent)
+        private void MainWindow_DragOver(object sender, DragEventArgs e)
+        {
+
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effects = DragDropEffects.None;
+            }
+            else
+            {
+                //transform.X += currentPoint.X - anchorPoint.X;
+                //transform.Y += (currentPoint.Y - anchorPoint.Y);
+                //this.RenderTransform = transform;
+                //anchorPoint = currentPoint;
+            }
+            e.Handled = true;
+        }
+
+        private void MainWindow_DragEnter(object sender, DragEventArgs e)
+        {
+
+            e.Handled = false;
+        }
+
+        private void MainWindow_MouseEnter(object sender, MouseEventArgs e)
+        {
+            e.Handled = false;
+            //throw new NotImplementedException();
+        }
+        private void MainWindow_MouseLeave(object sender, MouseEventArgs e)
+        {
+            e.Handled = false;
+            //throw new NotImplementedException();
+        }
+
+        private void MainWindow_Drop(object sender, DragEventArgs eDropEvent)
         {
             // init base code
-            base.OnDrop(eDropEvent);
+            //base.OnDrop(eDropEvent);
+
+            string[] dataFormats = eDropEvent.Data.GetFormats(true); 
 
             // If the DataObject contains string data, extract it.
             if (eDropEvent.Data.GetDataPresent(DataFormats.FileDrop))
@@ -132,42 +187,42 @@ namespace KickOff
                             Storyboard = mo_storyboard
                         };
 
+                        // Set the name of the storyboard so it can be found
                         NameScope.GetNameScope(this).RegisterName(enterBeginStoryboard.Name, enterBeginStoryboard);
 
                         var moe = new EventTrigger(MouseEnterEvent);
                         moe.Actions.Add(enterBeginStoryboard);
-                        //sci.Bitmap.iconImage.Triggers.Add(moe);
                         sci.Triggers.Add(moe);
-
                         var mle = new EventTrigger(MouseLeaveEvent);
                         mle.Actions.Add(
                             new StopStoryboard
                             {
                                 BeginStoryboardName = enterBeginStoryboard.Name
                             });
-                        //sci.Bitmap.iconImage.Triggers.Add(mle);
                         sci.Triggers.Add(mle);
 
-                        // Add mouse event handler to run the shortcut
-                        sci.MouseLeftButtonUp += IconImage_MouseLeftButtonUp;
-
                         // Add a popup to display the link name when the mouse is over
-                        sci.lnkPopup.IsOpen = false;
                         TextBlock popupText = new TextBlock();
-                        popupText.Text = sci.lnkData.Description;
+                        // Description is Comment 
+                        popupText.Text =
+                        System.IO.Path.GetFileNameWithoutExtension(sci.lnkData.ShortcutAddress);
+                        if(popupText.Text != sci.lnkData.Description)
+                            popupText.Text += "\n" + sci.lnkData.Description;
                         popupText.Background = Brushes.AntiqueWhite;
                         popupText.Foreground = Brushes.Black;
                         sci.lnkPopup.Child = popupText;
-                        //sci.lnkPopup.PlacementTarget = sci.lnkPopup;  // this crashes everything
-                        sci.lnkPopup.Placement = PlacementMode.MousePoint; //.Center;
+                        sci.lnkPopup.PlacementTarget = sci;
+                        sci.lnkPopup.IsOpen = false;
+                        sci.lnkPopup.Placement = PlacementMode.MousePoint;//.Center;
 
                         // add handlers for popup
-                        sci.MouseEnter += Sci_MouseEnter;
-                        sci.MouseLeave += Sci_MouseLeave;
+                        sci.MouseEnter += SCI_MouseEnter; // turn on popup
+                        sci.MouseLeave += SCI_MouseLeave; // turn off popup
+                        sci.MouseLeftButtonUp += SCI_MouseLeftButtonUp; // Add mouse event handler to run the shortcut
 
                         // load and mark as loaded (first or it is not in the collections's copy)
                         sci.IsRendered = true;
-                        //myMainPanel.Children.Add(sci.Bitmap.iconImage);
+
                         MainPanel.Children.Add(sci);
                     }
                 }
@@ -179,23 +234,21 @@ namespace KickOff
                 eDropEvent.Handled = false;
         }
 
-        private void Sci_MouseLeave(object sender, System.Windows.Input.MouseEventArgs mouseEvent)
-        {
-            Shortcut sc = (Shortcut)sender;
-            sc.lnkPopup.IsOpen = false;
-
-            mouseEvent.Handled = false;
-        }
-
-        private void Sci_MouseEnter(object sender, System.Windows.Input.MouseEventArgs mouseEvent)
+        private void SCI_MouseEnter(object sender, MouseEventArgs e)
         {
             Shortcut sc = (Shortcut)sender;
             sc.lnkPopup.IsOpen = true;
 
-            mouseEvent.Handled = false;
+            e.Handled = false;
         }
+        private void SCI_MouseLeave(object sender, MouseEventArgs e)
+        {
+            Shortcut sc = (Shortcut)sender;
+            sc.lnkPopup.IsOpen = false;
 
-        private void IconImage_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs mouseEvent)
+            e.Handled = false;
+        }
+        private void SCI_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs mouseEvent)
         {
             try
             {
@@ -203,16 +256,18 @@ namespace KickOff
 
                 if (scLink != null)
                 {
-                    try {
+                    try
+                    {
                         Process p = null;
 
-                        // This is this a reference .appref-ms file or an URL
-                        if (scLink.lnkData.bIsReference)
+                        // This is this a reference .appref-ms file or an URL or a data file
+                        if (scLink.lnkData.bTargetIsFile || scLink.lnkData.bIsReference)
                         {
+                            //if( scLink.lnkData.bIsReference ) {
                             //string n = @"rundll32.exe dfshim.dll,ShOpenVerbApplication http://github-windows.s3.amazonaws.com/GitHub.application#GitHub.application,Culture=neutral,PublicKeyToken=317444273a93ac29,processorArchitecture=x86";
                             //rundll32.exe dfshim.dll,ShOpenVerbShortcut D:\Users\User\Desktop\GitHub
                             //Uri a = new Uri(n);
-                            //string b = a.ToString();
+                            //string b = a.ToString(); }
 
                             p = Process.Start(scLink.lnkData.ShortcutAddress);
                         }
@@ -223,12 +278,12 @@ namespace KickOff
                             // Enter in the command line arguments, everything you would enter after the executable name itself
                             if (scLink.lnkData.bTargetIsDirectory)
                             {
-
                                 start.Arguments = scLink.lnkData.TargetPath;
                                 start.FileName = "explorer.exe";
                                 start.WorkingDirectory = scLink.lnkData.TargetPath;
                             }
-                            else {
+                            else
+                            {
                                 start.Arguments = scLink.lnkData.Arguments;
                                 // Enter the executable to run, including the complete path
                                 start.FileName = scLink.lnkData.TargetPath;
@@ -243,9 +298,11 @@ namespace KickOff
 
                             /// Run the programm
                             /// 
-                            try {
+                            try
+                            {
                                 p = Process.Start(start);
-                            } catch
+                            }
+                            catch
                             {
                                 /// if the process fails it seems that the current working directory may be to blame
                                 /// For example: The GitBash shortcut uses as command args: "C:\Program Files\Git\git-bash.exe" --cd-to-home
@@ -296,6 +353,7 @@ namespace KickOff
             return;
         }
 
+
         public ObservableCollection<Shortcut> ShortcutItems
         {
             get { return shortcutItems; }
@@ -325,22 +383,13 @@ namespace KickOff
 
                     if (items.Count() == 0) // the link imported is not in the existing list so add it
                     {
-                        /// Add a popup to display
-                        sc.lnkPopup = new Popup();
-                        TextBlock popupText = new TextBlock();
-                        popupText.Text = System.IO.Path.GetFileNameWithoutExtension(sc.lnkData.ShortcutAddress); //sc.lnkData.Description;// Description is Comment and often missing 
-                        popupText.Background = Brushes.AntiqueWhite;
-                        popupText.Foreground = Brushes.Black;
-                        sc.lnkPopup.Child = popupText;
-                        sc.lnkPopup.PlacementTarget = sc;
-                        sc.lnkPopup.IsOpen = false;
-
                         /// Add the shortcut to the list
                         shortcutItems.Add(sc);
                     }
                 }
             }
         }
+
     } //----------- Main Class
 
     public class Shortcut : Image
@@ -355,24 +404,9 @@ namespace KickOff
         public Popup lnkPopup { get; set; }
     }
 
-    /*
-        public bool IsReference { get; set; }
-
-        public string ShortcutName { get; set; }
-
-        public string FileName { get; set; }
-
-        public string TargetLinkPath { get; set; }
-
-        public string WorkingDirectory { get; set; }
-
-        public string TargetParameters { get; set; }
-
-        //public System.Windows.Media.Imaging.BitmapSource BitMapIcon { get; set; }
-
-        public IconBitMap Bitmap { get; set; }
-
-    }
-*/
-
 } //------------- Namespace
+
+
+/*
+
+*/

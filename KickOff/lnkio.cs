@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using IWshRuntimeLibrary;
+using System.Windows;
 
 namespace KickOff
 {
@@ -80,14 +81,14 @@ namespace KickOff
                 bool bTisD = (System.IO.File.GetAttributes(shortcutAddress).HasFlag(FileAttributes.Directory));
                 if (bTisD || System.IO.File.Exists(shortcutAddress))
                 {
-                    // the link itself is a directory
+                    // the link itself is a desktop directory and not a link
                     if (bTisD)
                     {
                         lnkData = new LnkData
                         {
                             Arguments = string.Empty,
-                            Description = System.IO.Path.GetFileNameWithoutExtension(shortcutAddress),
-                            FullName = System.IO.Path.GetFileName(shortcutAddress),
+                            Description = "Folder",
+                            FullName = System.IO.Path.GetDirectoryName(shortcutAddress),
                             Hotkey = string.Empty,
                             IconLocation = string.Empty,
                             TargetPath = shortcutAddress,
@@ -123,10 +124,20 @@ namespace KickOff
                                 ShortcutAddress = shortcutAddress
                             };
                         }
-                        else
+                        else if (".lnk" == System.IO.Path.GetExtension(shortcutAddress).ToLower())
                         {
                             IWshShortcut shortcut = (IWshShortcut)shell.CreateShortcut(shortcutAddress);
-                            bTisD = (System.IO.File.GetAttributes(shortcut.TargetPath).HasFlag(FileAttributes.Directory));
+                            if (null == shortcut.TargetPath || string.Empty == shortcut.TargetPath)
+                            {
+                                MessageBox.Show("The LNK file you attempted to import has no valid target data. Edit the shortcut. Note: if this" +
+                                    " is a 'This PC' shortcut, this is not possible.", "LNK Import Error",
+                                    MessageBoxButton.OK, MessageBoxImage.Error);
+
+                                throw new Exception("Shortcut does not have a standard target");
+                            }
+
+                            FileAttributes fa = System.IO.File.GetAttributes(shortcut.TargetPath);
+                            bTisD = (fa.HasFlag(FileAttributes.Directory));
                             lnkData = new LnkData
                             {
                                 Arguments = shortcut.Arguments,
@@ -144,12 +155,33 @@ namespace KickOff
                                 Bitmap = ico2bmap.GetBitmapFromFileIcon(bTisD ? shortcutAddress : shortcut.TargetPath),
                                 ShortcutAddress = shortcutAddress
                             };
+                        }
+                        else // this is not a link it's a file - get type and set target to assigned app
+                        {
+                            string ext = System.IO.Path.GetExtension(shortcutAddress).ToLower();
+                            // do not need to have knowledge of what to run just make file the target
+                            lnkData = new LnkData
+                            {
+                                Arguments = string.Empty,
+                                Description = ext.ToUpper() + " File",
+                                FullName = System.IO.Path.GetFileName(shortcutAddress),
+                                Hotkey = string.Empty,
+                                IconLocation = string.Empty,
+                                TargetPath = shortcutAddress,
+                                WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
+                                WorkingDirectory = string.Empty,
+
+                                bIsReference = false,
+                                bTargetIsDirectory = false,
+                                Bitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
+                                ShortcutAddress = shortcutAddress,
+                                bTargetIsFile = true
+                            };
 
                         }
                     }
                 }
             }
-            
             catch
             {
                 lnkData = null;
@@ -177,6 +209,7 @@ namespace KickOff
         public bool bIsReference { get; set; }
         public bool bTargetIsDirectory { get; set; }
         public IconBitMap Bitmap { get; set; }
+        public bool bTargetIsFile { get; set; }
         public string ShortcutAddress { get; set; }
     }
 
