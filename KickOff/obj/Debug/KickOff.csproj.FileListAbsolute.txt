@@ -1,9 +1,8 @@
 D:\Users\User\Documents\My Projects\KickOff\KickOff\bin\Debug\KickOff.exe.config
 D:\Users\User\Documents\My Projects\KickOff\KickOff\bin\Debug\KickOff.exe
 D:\Users\User\Documents\My Projects\KickOff\KickOff\bin\Debug\KickOff.pdb
-D:\Users\User\Documents\My Projects\KickOff\KickOff\bin\Debug\System.Net.Http.dll
-D:\Users\User\Documents\My Projects\KickOff\KickOff\bin\Debug\System.Net.Http.xml
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\Interop.IWshRuntimeLibrary.dll
+D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\Interop.Shell32.dll
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.csproj.ResolveComReference.cache
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\MainWindow.g.cs
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\App.g.cs
@@ -15,3 +14,4 @@ D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.Properties
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.csproj.GenerateResource.Cache
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.exe
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.pdb
+D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.csprojResolveAssemblyReference.cache

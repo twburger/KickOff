@@ -8,12 +8,41 @@ using System.Linq;
 using System.Windows.Media.Animation;
 using System;
 using System.Diagnostics;
-using System.IO;
 using System.Windows.Media;
 using System.Windows.Input;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace KickOff
 {
+    internal static class WindowExtensions
+    {
+        // from winuser.h
+        private const int GWL_STYLE = -16,
+                          WS_MAXIMIZEBOX = 0x10000,
+                          WS_MINIMIZEBOX = 0x20000;
+
+        [DllImport("user32.dll")]
+        extern private static int GetWindowLong(IntPtr hwnd, int index);
+
+        [DllImport("user32.dll")]
+        extern private static int SetWindowLong(IntPtr hwnd, int index, int value);
+
+        internal static void HideMinimizeAndMaximizeButtons(this Window window)
+        {
+            IntPtr hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+            var currentStyle = GetWindowLong(hwnd, GWL_STYLE);
+
+            SetWindowLong(hwnd, GWL_STYLE, (currentStyle & ~WS_MAXIMIZEBOX & ~WS_MINIMIZEBOX));
+        }
+        internal static void ShowMinimizeAndMaximizeButtons(this Window window)
+        {
+            IntPtr hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+            var currentStyle = GetWindowLong(hwnd, GWL_STYLE);
+
+            SetWindowLong(hwnd, GWL_STYLE, (currentStyle | WS_MAXIMIZEBOX | WS_MINIMIZEBOX));
+        }
+    }
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
@@ -22,43 +51,51 @@ namespace KickOff
         private ObservableCollection<Shortcut> shortcutItems;
         private WrapPanel MainPanel;
         //private Grid MainPanel;
-        private int IconCounter;
+        private int IconCounter=0;
+        private string ProgramState;
 
         public MainWindow()
         {
-            InitializeComponent();
+            // Windows logoff or shutdown
+            Application.Current.SessionEnding += Current_SessionEnding;
 
+            //Program ending
+            Application.Current.Exit += Current_Exit;
+
+            // allow data to be dragged into app
             AllowDrop = true;
 
-            // main control
+            //WindowStyle = WindowStyle.ToolWindow;
+            //WindowStyle = WindowStyle.SingleBorderWindow;//WindowStyle.None;// WindowStyle.SingleBorderWindow;
+            //this.WindowStyle = WindowStyle.None; this.
+            //AllowsTransparency = true;
+            WindowStyle = WindowStyle.SingleBorderWindow;
+            this.SourceInitialized += (x, y) =>
+            {
+                this.HideMinimizeAndMaximizeButtons();
+            };
 
-            //MainPanel = new Grid()
-            //MainPanel.ShowGridLines = true;
+            ResizeMode = ResizeMode.CanResize;
+            SizeToContent = SizeToContent.Manual; //.WidthAndHeight;
+            ////Height = 400;            Width = 150;
+            Background = Brushes.AntiqueWhite; // SystemColors.WindowBrush; // Brushes.AntiqueWhite;
+            Foreground = SystemColors.WindowTextBrush; // Brushes.DarkBlue;
 
             MainPanel = new WrapPanel();
             MainPanel.Margin = new Thickness(2);
             MainPanel.Width = Double.NaN; //auto
             MainPanel.Height = Double.NaN; //auto
-
             MainPanel.AllowDrop = true;
+            MainPanel.Visibility = Visibility.Visible;
+            this.Content = MainPanel; // create a panel to draw in
 
-            //ColumnDefinition gridCol1 = new ColumnDefinition();
-            //ColumnDefinition gridCol2 = new ColumnDefinition();
-            //ColumnDefinition gridCol3 = new ColumnDefinition();
-            //ColumnDefinition gridCol4 = new ColumnDefinition();
-            //MainPanel.ColumnDefinitions.Add(gridCol1);
-            //MainPanel.ColumnDefinitions.Add(gridCol2);
-            //MainPanel.ColumnDefinitions.Add(gridCol3);
-            //MainPanel.ColumnDefinitions.Add(gridCol4);
-
-            //RowDefinition gridRow1 = new RowDefinition();
-            //RowDefinition gridRow2 = new RowDefinition();
-            //RowDefinition gridRow3 = new RowDefinition();
-            //RowDefinition gridRow4 = new RowDefinition();
-            //MainPanel.RowDefinitions.Add(gridRow1);
-            //MainPanel.RowDefinitions.Add(gridRow2);
-            //MainPanel.RowDefinitions.Add(gridRow3);
-            //MainPanel.RowDefinitions.Add(gridRow4);
+            // add handlers for mouse leaving the main window
+            MouseEnter += MainWindow_MouseEnter;
+            MouseLeave += MainWindow_MouseLeave;
+            DragEnter += MainWindow_DragEnter;
+            Drop += MainWindow_Drop;
+            DragOver += MainWindow_DragOver;
+            GiveFeedback += MainWindow_GiveFeedback;
 
             IconCounter = 0;
 
@@ -66,21 +103,78 @@ namespace KickOff
                 shortcutItems = new ObservableCollection<Shortcut>();
             shortcutItems.Clear();
 
+            Loaded += MainWindow_Loaded;
+        }
 
-            ResizeMode = ResizeMode.CanResize;
-            SizeToContent = SizeToContent.Manual; //.WidthAndHeight;
-            Height = 200;
-            Width = 400;
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            // get the program state - do not run this until shortcutItems is created
+            SetProgramState();
+        }
 
-            // add handlers for mouse leaving the main window
-            MouseEnter += MainWindow_MouseEnter;
-            MouseLeave += MainWindow_MouseLeave; ;
-            DragEnter += MainWindow_DragEnter;
-            Drop += MainWindow_Drop;
-            DragOver += MainWindow_DragOver;
-            GiveFeedback += MainWindow_GiveFeedback;
+        private void Current_SessionEnding(object sender, SessionEndingCancelEventArgs e)
+        {
+            SaveProgramState();
 
-            this.Content = MainPanel; // create a panel to draw in
+            //throw new NotImplementedException();
+        }
+
+        private void Current_Exit(object sender, ExitEventArgs e)
+        {
+            SaveProgramState();
+        }
+
+
+        public void SaveProgramState()
+        {
+            /// Get the current main window size and position, and the 
+            /// paths to the shortcuts.
+            ProgramState = string.Empty;
+            ProgramState += Top.ToString(); //Application.Current.MainWindow.Top.ToString();
+            ProgramState += "\n";
+            ProgramState += Left.ToString();
+            ProgramState += "\n";
+            ProgramState += Height.ToString();
+            ProgramState += "\n";
+            ProgramState += Width.ToString();
+            ProgramState += "\n";
+
+            foreach (Shortcut s in shortcutItems)
+            {
+                ProgramState += s.lnkData.ShortcutAddress + "\n";
+            }
+
+            lnkio.WriteProgramState(ProgramState);
+
+            //throw new NotImplementedException();
+        }
+
+        public void SetProgramState()
+        {
+            ProgramState = string.Empty;
+            ProgramState = lnkio.ReadProgramState();
+
+            if (string.Empty != ProgramState)
+            {
+                // Break up on the newline 
+                string[] s = ProgramState.Split('\n');
+
+                // first is program name and second is timestamp
+
+                Application.Current.MainWindow.Top = Double.Parse(s[2]);
+                Application.Current.MainWindow.Left = Double.Parse(s[3]);
+
+                Application.Current.MainWindow.Height = Double.Parse(s[4]);
+                Application.Current.MainWindow.Width = Double.Parse(s[5]);
+
+                // skip the first 3 elements of the array
+                IEnumerable<string> items = s.Skip(6);
+                s = items.ToArray<string>();
+
+                CreateShortCut(s);
+
+                PlaceShortcutsintoView(s);
+            }
         }
 
         private void MainWindow_GiveFeedback(object sender, GiveFeedbackEventArgs e)
@@ -100,25 +194,26 @@ namespace KickOff
 
         private void MainWindow_DragOver(object sender, DragEventArgs e)
         {
+            //string[] dataFormats = eDropEvent.Data.GetFormats(true);
 
-            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
-            {
-                e.Effects = DragDropEffects.None;
-            }
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                e.Effects = DragDropEffects.Copy;
             else
-            {
-                //transform.X += currentPoint.X - anchorPoint.X;
-                //transform.Y += (currentPoint.Y - anchorPoint.Y);
-                //this.RenderTransform = transform;
-                //anchorPoint = currentPoint;
-            }
+                e.Effects = DragDropEffects.None;
+
             e.Handled = true;
         }
 
         private void MainWindow_DragEnter(object sender, DragEventArgs e)
         {
+            //string[] dataFormats = e.Data.GetFormats(true);
 
-            e.Handled = false;
+            //    if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            //        e.Effects = DragDropEffects.Copy;
+            //    else
+            //        e.Effects = DragDropEffects.None;
+
+            //    e.Handled = true;
         }
 
         private void MainWindow_MouseEnter(object sender, MouseEventArgs e)
@@ -126,6 +221,7 @@ namespace KickOff
             e.Handled = false;
             //throw new NotImplementedException();
         }
+
         private void MainWindow_MouseLeave(object sender, MouseEventArgs e)
         {
             e.Handled = false;
@@ -135,9 +231,9 @@ namespace KickOff
         private void MainWindow_Drop(object sender, DragEventArgs eDropEvent)
         {
             // init base code
-            //base.OnDrop(eDropEvent);
+            //base.OnDrop(eDropEvent);  // do not use this code does all needed
 
-            string[] dataFormats = eDropEvent.Data.GetFormats(true); 
+            string[] dataFormats = eDropEvent.Data.GetFormats(true);
 
             // If the DataObject contains string data, extract it.
             if (eDropEvent.Data.GetDataPresent(DataFormats.FileDrop))
@@ -148,90 +244,97 @@ namespace KickOff
                 /// 
                 CreateShortCut(FileList);
 
-                // create the link(s) in main window
-                foreach (Shortcut sci in shortcutItems)
-                {
-                    if (!sci.IsRendered) // not already on display
-                    {
-                        sci.Name = "_Icon" + IconCounter.ToString(); // used to match image to data
+                PlaceShortcutsintoView(FileList);
 
-                        /// Set the image bitmap
-                        /// 
-                        sci.Width = sci.lnkData.Bitmap.BitmapSize; //.Bitmap.bitmap.Width;
-                        sci.Source = sci.lnkData.Bitmap.bitmapsource; //.Bitmap.bitmapsource;
-                        sci.Visibility = Visibility.Visible;
-
-                        IconCounter++;
-
-                        DoubleAnimation mo_animation = new DoubleAnimation
-                        {
-                            From = 1.0,
-                            To = 0.1,
-                            Duration = new Duration(TimeSpan.FromSeconds(0.5)),
-                            AutoReverse = true
-                            //RepeatBehavior = RepeatBehavior.Forever
-                        };
-
-                        var mo_storyboard = new Storyboard
-                        {
-                            RepeatBehavior = RepeatBehavior.Forever
-                        };
-
-                        Storyboard.SetTargetProperty(mo_animation, new PropertyPath("(Opacity)"));
-
-                        mo_storyboard.Children.Add(mo_animation);
-
-                        BeginStoryboard enterBeginStoryboard = new BeginStoryboard
-                        {
-                            Name = sci.Name + "_esb",
-                            Storyboard = mo_storyboard
-                        };
-
-                        // Set the name of the storyboard so it can be found
-                        NameScope.GetNameScope(this).RegisterName(enterBeginStoryboard.Name, enterBeginStoryboard);
-
-                        var moe = new EventTrigger(MouseEnterEvent);
-                        moe.Actions.Add(enterBeginStoryboard);
-                        sci.Triggers.Add(moe);
-                        var mle = new EventTrigger(MouseLeaveEvent);
-                        mle.Actions.Add(
-                            new StopStoryboard
-                            {
-                                BeginStoryboardName = enterBeginStoryboard.Name
-                            });
-                        sci.Triggers.Add(mle);
-
-                        // Add a popup to display the link name when the mouse is over
-                        TextBlock popupText = new TextBlock();
-                        // Description is Comment 
-                        popupText.Text =
-                        System.IO.Path.GetFileNameWithoutExtension(sci.lnkData.ShortcutAddress);
-                        if(popupText.Text != sci.lnkData.Description)
-                            popupText.Text += "\n" + sci.lnkData.Description;
-                        popupText.Background = Brushes.AntiqueWhite;
-                        popupText.Foreground = Brushes.Black;
-                        sci.lnkPopup.Child = popupText;
-                        sci.lnkPopup.PlacementTarget = sci;
-                        sci.lnkPopup.IsOpen = false;
-                        sci.lnkPopup.Placement = PlacementMode.MousePoint;//.Center;
-
-                        // add handlers for popup
-                        sci.MouseEnter += SCI_MouseEnter; // turn on popup
-                        sci.MouseLeave += SCI_MouseLeave; // turn off popup
-                        sci.MouseLeftButtonUp += SCI_MouseLeftButtonUp; // Add mouse event handler to run the shortcut
-
-                        // load and mark as loaded (first or it is not in the collections's copy)
-                        sci.IsRendered = true;
-
-                        MainPanel.Children.Add(sci);
-                    }
-                }
                 eDropEvent.Handled = true;
-
-                return;
             }
             else
                 eDropEvent.Handled = false;
+        }
+
+        private void PlaceShortcutsintoView(string[] FileList)
+        {
+            // create the link(s) in main window
+            foreach (Shortcut sci in shortcutItems)
+            {
+                if (!sci.IsRendered) // not already on display
+                {
+                    sci.Name = "_Icon" + IconCounter.ToString(); // used to match image to data
+
+                    /// Set the image bitmap
+                    /// 
+                    sci.Width = sci.lnkData.Bitmap.BitmapSize; //.Bitmap.bitmap.Width;
+                    sci.Source = sci.lnkData.Bitmap.bitmapsource; //.Bitmap.bitmapsource;
+                    sci.Visibility = Visibility.Visible;
+
+                    IconCounter++;
+
+                    // Create Animations that modofy the shortcut icons
+                    DoubleAnimation mo_animation = new DoubleAnimation
+                    {
+                        From = 1.0,
+                        To = 0.1,
+                        Duration = new Duration(TimeSpan.FromSeconds(0.75)),
+                        AutoReverse = true
+                        //RepeatBehavior = RepeatBehavior.Forever
+                    };
+                    
+                    var mo_storyboard = new Storyboard
+                    {
+                        RepeatBehavior = RepeatBehavior.Forever
+                    };
+
+                    Storyboard.SetTargetProperty(mo_animation, new PropertyPath("(Opacity)"));
+                    
+                    mo_storyboard.Children.Add(mo_animation);
+                    
+                    BeginStoryboard enterBeginStoryboard = new BeginStoryboard
+                    {
+                        Name = sci.Name + "_esb",
+                        Storyboard = mo_storyboard
+                    };
+
+                    // Set the name of the storyboard so it can be found
+                    NameScope.GetNameScope(this).RegisterName(enterBeginStoryboard.Name, enterBeginStoryboard);
+
+                    var moe = new EventTrigger(MouseEnterEvent);
+                    moe.Actions.Add(enterBeginStoryboard);
+                    sci.Triggers.Add(moe);
+                    var mle = new EventTrigger(MouseLeaveEvent);
+                    mle.Actions.Add(
+                        new StopStoryboard
+                        {
+                            BeginStoryboardName = enterBeginStoryboard.Name
+                        });
+                    sci.Triggers.Add(mle);
+
+                    // Add a popup to display the link name when the mouse is over
+                    TextBlock popupText = new TextBlock();
+                    // Description is Comment 
+                    popupText.Text =
+                    System.IO.Path.GetFileNameWithoutExtension(sci.lnkData.ShortcutAddress);
+                    if (popupText.Text != sci.lnkData.Description)
+                        popupText.Text += "\n" + sci.lnkData.Description;
+                    popupText.Background = Brushes.AntiqueWhite;
+                    popupText.Foreground = Brushes.Black;
+                    sci.lnkPopup.Child = popupText;
+                    sci.lnkPopup.PlacementTarget = sci;
+                    sci.lnkPopup.IsOpen = false;
+                    sci.lnkPopup.Placement = PlacementMode.MousePoint;//.Center;
+
+                    // add handlers for popup
+                    sci.MouseEnter += SCI_MouseEnter; // turn on popup
+                    sci.MouseLeave += SCI_MouseLeave; // turn off popup
+                    sci.MouseLeftButtonUp += SCI_MouseLeftButtonUp; // Add mouse event handler to run the shortcut
+
+                    // load and mark as loaded (first or it is not in the collections's copy)
+                    sci.IsRendered = true;
+
+                    MainPanel.Children.Add(sci);
+                }
+            }
+
+            return;
         }
 
         private void SCI_MouseEnter(object sender, MouseEventArgs e)
@@ -269,7 +372,7 @@ namespace KickOff
                             //Uri a = new Uri(n);
                             //string b = a.ToString(); }
 
-                            p = Process.Start(scLink.lnkData.ShortcutAddress);
+                            p = Process.Start(scLink.lnkData.ShortcutAddress);  // just send the link to the OS
                         }
                         else
                         {
@@ -368,10 +471,17 @@ namespace KickOff
         {
             foreach (string FilePath in FileList)
             {
+                if (null == FilePath || string.Empty == FilePath)
+                    continue;
 
                 LnkData lnk = lnkio.ResolveShortcut(FilePath);
                 if (null != lnk)
                 {
+                    if( null == lnk || lnk.ShortcutAddress == string.Empty)
+                    {
+                        throw new Exception("Shortcut link does not have a path");
+                    }
+
                     Shortcut sc = new Shortcut
                     {
                         lnkData = lnk,
