@@ -4,7 +4,7 @@ using System.Drawing;
 using System.Windows;
 using System.IO;
 using System.Runtime.InteropServices;
-
+using System.Collections.ObjectModel;
 
 namespace KickOff
 {
@@ -12,6 +12,8 @@ namespace KickOff
     {
         [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.Winapi)]
         private static extern int ExtractIconEx(string sFile, int iIndex, out IntPtr piLargeVersion, out IntPtr piSmallVersion, int amountIcons);
+        [DllImport("Shell32.dll", CharSet = CharSet.Auto)]
+        private static extern int ExtractIconEx(string sFile, int iIndex,  IntPtr[] piLargeVersion,  IntPtr[] piSmallVersion, int amountIcons);
 
         [DllImport("Shell32.dll", EntryPoint = "DestroyIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
         private static extern int DestroyIconEx(IntPtr pIcon);
@@ -35,9 +37,10 @@ namespace KickOff
                     //writeablebitmap = wbitmap
                 };
             }
-            catch (Exception e)
+            catch// (Exception e)
             {
-                throw new Exception(e.Message);
+                ibm = ExtractIconBitMap(SystemIcons.Error);
+                //throw new Exception(e.Message);
             }
 
             return ibm;
@@ -47,9 +50,9 @@ namespace KickOff
         {
             return ExtractIconBitMap(Icon.FromHandle(pi));
         }
-        private static int ExtractIconEx_mine(string file, int iconindex, IntPtr ico_l, IntPtr ico_s)
+        private static int ExtractIconEx_GetCount(string file, IntPtr ico_l, IntPtr ico_s)
         {
-            return ExtractIconEx(file, iconindex, out ico_l, out ico_s, 1); ;
+            return ExtractIconEx(file, -1, out ico_l, out ico_s, 1); ;
         }
 
         static IconBitMap ExtractIconBitMapFromFile(string file, int iconindex, bool largeIcon)
@@ -59,9 +62,9 @@ namespace KickOff
             IconBitMap ibm = null;
             try
             {
-                int i = ExtractIconEx_mine(file, -1, IntPtr.Zero, IntPtr.Zero);
+                int totalIcons = ExtractIconEx_GetCount(file, IntPtr.Zero, IntPtr.Zero);
 
-                if (i > iconindex)
+                if (totalIcons > iconindex)
                 {
                     ExtractIconEx(file, iconindex, out large, out small, 1);
                     if ((largeIcon && IntPtr.Zero == large ) || IntPtr.Zero == small)
@@ -75,10 +78,13 @@ namespace KickOff
                     }
                 }
             }
-            catch (Exception e)
+            catch //(Exception e)
             {
-                throw new Exception(e.Message);
+                //throw new Exception(e.Message);
+                ibm = ExtractIconBitMap(SystemIcons.Error);
             }
+            // This does not seem to work. OS ver specific?
+            // handles are invalid
             //finally
             //{
             //    // destroy the icon from Win32 or memory will not be released
@@ -90,6 +96,37 @@ namespace KickOff
             return ibm;
         }
 
+        public const int MAX_ICONS = 100;
+
+        public static ObservableCollection<IconBitMap> ExtractAllIconBitMapFromFile(string file)
+        {
+            IntPtr[] large = new IntPtr[MAX_ICONS];
+            IntPtr[] small = new IntPtr[MAX_ICONS];
+            ObservableCollection<IconBitMap> ibm = new ObservableCollection<IconBitMap>();
+            try
+            {
+                int totalicons = ExtractIconEx_GetCount(file, IntPtr.Zero, IntPtr.Zero);
+                if (totalicons > 0)
+                {
+                    if (totalicons > MAX_ICONS)
+                        totalicons = MAX_ICONS;
+                    int iconsExtracted = ExtractIconEx(file, 0,  large,  small, totalicons); // note arrays are passed as pointers, so no 'out'
+                    if (iconsExtracted > 0)
+                    {
+                        for (int i = 0; i < totalicons; i++)
+                        {
+                            ibm.Add(ExtractIconBitMap(large[i]));
+                        }
+                    }
+                }
+            }
+            catch //(Exception e)
+            {
+                //throw new Exception(e.Message);
+                ibm.Add(ExtractIconBitMap(SystemIcons.Error));
+            }
+            return ibm;
+        }
         public static IconBitMap GetBitmapFromFileIcon(string file)
         {
             IconBitMap ibm = null;
@@ -104,9 +141,10 @@ namespace KickOff
                     ibm = ExtractIconBitMapFromFile("shell32.dll", 4, true);
                     //ico = SystemIcons.Hand; //System.Drawing.Icon.ExtractAssociatedIcon(% SystemRoot %\system32\shell32.dll); C:\Windows\System32\imageres.dll % SystemRoot %\system32\DDORes.dll
                 }
-                catch (Exception e)
+                catch //(Exception e)
                 {
-                    throw new Exception(e.Message);
+                    //throw new Exception(e.Message);
+                    ibm = ExtractIconBitMap(SystemIcons.Error);
                 }
 
             }
@@ -124,10 +162,11 @@ namespace KickOff
                 catch //(Exception e)
                 {
                     //throw new Exception(e.Message + "File: " + file);
-                    if (null == ibm)
+                    //if (null == ibm)
                     {
-                        System.Drawing.Icon ico = System.Drawing.Icon.ExtractAssociatedIcon(file);
-                        ibm = ExtractIconBitMap(ico);
+                        //System.Drawing.Icon ico = System.Drawing.Icon.ExtractAssociatedIcon(file);
+                        //ibm = ExtractIconBitMap(ico);
+                        ibm = ExtractIconBitMap(SystemIcons.Error);
                     }
                 }
             }

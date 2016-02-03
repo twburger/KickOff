@@ -62,6 +62,8 @@ namespace KickOff
             //Program ending
             Application.Current.Exit += Current_Exit;
 
+            //ObservableCollection<IconBitMap> allico = ico2bmap.ExtractAllIconBitMapFromFile("shell32.dll");
+
             // allow data to be dragged into app
             AllowDrop = true;
 
@@ -327,6 +329,9 @@ namespace KickOff
                     sci.MouseLeave += SCI_MouseLeave; // turn off popup
                     sci.MouseLeftButtonUp += SCI_MouseLeftButtonUp; // Add mouse event handler to run the shortcut
 
+                    // right click menu
+                    sci.MouseRightButtonUp += Sci_MouseRightButtonUp;
+
                     // load and mark as loaded (first or it is not in the collections's copy)
                     sci.IsRendered = true;
 
@@ -337,121 +342,138 @@ namespace KickOff
             return;
         }
 
-        private void SCI_MouseEnter(object sender, MouseEventArgs e)
+        private void Sci_MouseRightButtonUp(object sender, MouseButtonEventArgs mssgEvent)
         {
             Shortcut sc = (Shortcut)sender;
-            sc.lnkPopup.IsOpen = true;
+            try
+            {
+                // remove the shortcut from the list, the panel and destroy itself
+                if (MainPanel.Children.Contains(sc))
+                {
+                    // doing this makes problems if other triggers like mouseleave need to refer to the control
+                    //MainPanel.Children.Remove(sc);
+                    sc.Visibility = Visibility.Hidden;
+                    sc.IsEnabled = false;
+
+                    shortcutItems.Remove(sc);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+        }
+        private void SCI_MouseEnter(object sender, MouseEventArgs e)
+        {
+            ((Shortcut)sender).lnkPopup.IsOpen = true;
 
             e.Handled = false;
         }
         private void SCI_MouseLeave(object sender, MouseEventArgs e)
         {
-            Shortcut sc = (Shortcut)sender;
-            sc.lnkPopup.IsOpen = false;
-
+            ((Shortcut)sender).lnkPopup.IsOpen = false;
             e.Handled = false;
         }
         private void SCI_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs mouseEvent)
         {
-            try
-            {
-                Shortcut scLink = (Shortcut)sender;
-
-                if (scLink != null)
+            Shortcut scLink = (Shortcut)sender;
+                try
                 {
-                    try
+                    if (scLink != null)
                     {
-                        Process p = null;
-
-                        // This is this a reference .appref-ms file or an URL or a data file
-                        if (scLink.lnkData.bTargetIsFile || scLink.lnkData.bIsReference)
+                        try
                         {
-                            //if( scLink.lnkData.bIsReference ) {
-                            //string n = @"rundll32.exe dfshim.dll,ShOpenVerbApplication http://github-windows.s3.amazonaws.com/GitHub.application#GitHub.application,Culture=neutral,PublicKeyToken=317444273a93ac29,processorArchitecture=x86";
-                            //rundll32.exe dfshim.dll,ShOpenVerbShortcut D:\Users\User\Desktop\GitHub
-                            //Uri a = new Uri(n);
-                            //string b = a.ToString(); }
+                            Process p = null;
 
-                            p = Process.Start(scLink.lnkData.ShortcutAddress);  // just send the link to the OS
-                        }
-                        else
-                        {
-                            // Prepare the process to run
-                            ProcessStartInfo start = new ProcessStartInfo();
-                            // Enter in the command line arguments, everything you would enter after the executable name itself
-                            if (scLink.lnkData.bTargetIsDirectory)
+                            // This is this a reference .appref-ms file or an URL or a data file
+                            if (scLink.lnkData.bTargetIsFile || scLink.lnkData.bIsReference)
                             {
-                                start.Arguments = scLink.lnkData.TargetPath;
-                                start.FileName = "explorer.exe";
-                                start.WorkingDirectory = scLink.lnkData.TargetPath;
+                                //if( scLink.lnkData.bIsReference ) {
+                                //string n = @"rundll32.exe dfshim.dll,ShOpenVerbApplication http://github-windows.s3.amazonaws.com/GitHub.application#GitHub.application,Culture=neutral,PublicKeyToken=317444273a93ac29,processorArchitecture=x86";
+                                //rundll32.exe dfshim.dll,ShOpenVerbShortcut D:\Users\User\Desktop\GitHub
+                                //Uri a = new Uri(n);
+                                //string b = a.ToString(); }
+
+                                p = Process.Start(scLink.lnkData.ShortcutAddress);  // just send the link to the OS
                             }
                             else
                             {
-                                start.Arguments = scLink.lnkData.Arguments;
-                                // Enter the executable to run, including the complete path
-                                start.FileName = scLink.lnkData.TargetPath;
-                                /// For cases where the starting working directory is like this:  %HOMEDRIVE%%HOMEPATH%
-                                start.WorkingDirectory = Environment.ExpandEnvironmentVariables(scLink.lnkData.WorkingDirectory);
-                                start.WorkingDirectory = System.IO.Path.GetFullPath(scLink.lnkData.WorkingDirectory);
-                            }
-                            // Do you want to show a console window?
-                            start.WindowStyle = ProcessWindowStyle.Normal;
-                            start.CreateNoWindow = true;
-                            start.UseShellExecute = false; // do not open reference using shell or args can not be used
+                                // Prepare the process to run
+                                ProcessStartInfo start = new ProcessStartInfo();
+                                // Enter in the command line arguments, everything you would enter after the executable name itself
+                                if (scLink.lnkData.bTargetIsDirectory)
+                                {
+                                    start.Arguments = scLink.lnkData.TargetPath;
+                                    start.FileName = "explorer.exe";
+                                    start.WorkingDirectory = scLink.lnkData.TargetPath;
+                                }
+                                else
+                                {
+                                    start.Arguments = scLink.lnkData.Arguments;
+                                    // Enter the executable to run, including the complete path
+                                    start.FileName = scLink.lnkData.TargetPath;
+                                    /// For cases where the starting working directory is like this:  %HOMEDRIVE%%HOMEPATH%
+                                    start.WorkingDirectory = Environment.ExpandEnvironmentVariables(scLink.lnkData.WorkingDirectory);
+                                    start.WorkingDirectory = System.IO.Path.GetFullPath(scLink.lnkData.WorkingDirectory);
+                                }
+                                // Do you want to show a console window?
+                                start.WindowStyle = ProcessWindowStyle.Normal;
+                                start.CreateNoWindow = true;
+                                start.UseShellExecute = false; // do not open reference using shell or args can not be used
 
-                            /// Run the programm
-                            /// 
-                            try
-                            {
-                                p = Process.Start(start);
+                                /// Run the programm
+                                /// 
+                                try
+                                {
+                                    p = Process.Start(start);
+                                }
+                                catch
+                                {
+                                    /// if the process fails it seems that the current working directory may be to blame
+                                    /// For example: The GitBash shortcut uses as command args: "C:\Program Files\Git\git-bash.exe" --cd-to-home
+                                    /// and the starting working directory of %HOMEDRIVE%%HOMEPATH%
+                                    start.WorkingDirectory = string.Empty;//@"D:\Users\user";
+                                    try { p = Process.Start(start); } catch { throw new Exception("Program run error: Program start failed"); }
+                                }
                             }
-                            catch
+
+                            if (p == null) // could be that it just does not start 2+ instances
                             {
-                                /// if the process fails it seems that the current working directory may be to blame
-                                /// For example: The GitBash shortcut uses as command args: "C:\Program Files\Git\git-bash.exe" --cd-to-home
-                                /// and the starting working directory of %HOMEDRIVE%%HOMEPATH%
-                                start.WorkingDirectory = string.Empty;//@"D:\Users\user";
-                                try { p = Process.Start(start); } catch { throw new Exception("Program run error: Program start failed"); }
+                                // throw new Exception("Program run error: Program did not run");
                             }
                         }
+                        catch { throw new Exception("Program run error: Program start failed"); }
 
-                        if (p == null) // could be that it just does not start 2+ instances
-                        {
-                            // throw new Exception("Program run error: Program did not run");
-                        }
-                    }
-                    catch { throw new Exception("Program run error: Program start failed"); }
+                        //int exitCode;
+                        //// Run the external process & wait for it to finish
+                        //using (Process proc = Process.Start(start))
+                        //{
+                        //    proc.WaitForExit();
 
-                    //int exitCode;
-                    //// Run the external process & wait for it to finish
-                    //using (Process proc = Process.Start(start))
-                    //{
-                    //    proc.WaitForExit();
-
-                    //    // Retrieve the app's exit code
-                    //    exitCode = proc.ExitCode;
-                    //}
-                }
-                else
-                {
-                    // bad
-                    if (scLink != null)
-                    {
-                        if (scLink.Name != null)
-                            throw new Exception("Program run error: Internal data lookup error. The icon has no data or internal name: '" + scLink.Name + "' is corrupt");
-                        else
-                            throw new Exception("Program run error: Internal data lookup error. The icon internal name is missing");
+                        //    // Retrieve the app's exit code
+                        //    exitCode = proc.ExitCode;
+                        //}
                     }
                     else
-                        throw new Exception("Program run error: Internal shortcut data lookup error. The data is not found");
+                    {
+                        // bad
+                        if (scLink != null)
+                        {
+                            if (scLink.Name != null)
+                                throw new Exception("Program run error: Internal data lookup error. The icon has no data or internal name: '" + scLink.Name + "' is corrupt");
+                            else
+                                throw new Exception("Program run error: Internal data lookup error. The icon internal name is missing");
+                        }
+                        else
+                            throw new Exception("Program run error: Internal shortcut data lookup error. The data is not found");
+                    }
                 }
-            }
-            catch
-            {
-                throw new Exception("Program run error: Unknown internal error. Program data lookup failed.");
-            }
+                catch
+                {
+                    throw new Exception("Program run error: Unknown internal error. Program data lookup failed.");
+                }
 
-            mouseEvent.Handled = true;
+                mouseEvent.Handled = true;
 
             return;
         }
