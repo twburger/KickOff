@@ -12,6 +12,9 @@ using System.Windows.Media;
 using System.Windows.Input;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Windows.Data;
+using System.Collections;
+//using System.Security;
 
 namespace KickOff
 {
@@ -48,9 +51,11 @@ namespace KickOff
     /// </summary>
     public partial class MainWindow : Window
     {
-        private ObservableCollection<Shortcut> shortcutItems;
-        private WrapPanel MainPanel;
+        private ObservableCollection<Shortcut> Shortcuts= new ObservableCollection<Shortcut>();//null;
+        //private WrapPanel MainPanel = new WrapPanel();
+        //private DockPanel MainPanel = new DockPanel();
         //private Grid MainPanel;
+        private UniformGrid MainPanel = new UniformGrid();
         private int IconCounter=0;
         private string ProgramState;
 
@@ -71,6 +76,8 @@ namespace KickOff
             //WindowStyle = WindowStyle.SingleBorderWindow;//WindowStyle.None;// WindowStyle.SingleBorderWindow;
             //this.WindowStyle = WindowStyle.None; this.
             //AllowsTransparency = true;
+
+            // Turn off the min and max buttons
             WindowStyle = WindowStyle.SingleBorderWindow;
             this.SourceInitialized += (x, y) =>
             {
@@ -83,13 +90,14 @@ namespace KickOff
             Background = Brushes.AntiqueWhite; // SystemColors.WindowBrush; // Brushes.AntiqueWhite;
             Foreground = SystemColors.WindowTextBrush; // Brushes.DarkBlue;
 
-            MainPanel = new WrapPanel();
+            //MainPanel = new WrapPanel();
             MainPanel.Margin = new Thickness(2);
             MainPanel.Width = Double.NaN; //auto
             MainPanel.Height = Double.NaN; //auto
             MainPanel.AllowDrop = true;
             MainPanel.Visibility = Visibility.Visible;
-            this.Content = MainPanel; // create a panel to draw in
+
+            Content = MainPanel; // create a panel to draw in
 
             // add handlers for mouse leaving the main window
             MouseEnter += MainWindow_MouseEnter;
@@ -101,16 +109,19 @@ namespace KickOff
 
             IconCounter = 0;
 
-            if (shortcutItems == null)
-                shortcutItems = new ObservableCollection<Shortcut>();
-            shortcutItems.Clear();
+            //if (Shortcuts == null)                Shortcuts = new ObservableCollection<Shortcut>();            Shortcuts.Clear();
 
+            //DataContext = Shortcuts;
+            //ItemsControl itemCntrl = new ItemsControl();
+            //itemCntrl.ItemsSource = "{Binding}";
+
+            // add load behavior to change size and position to last saved
             Loaded += MainWindow_Loaded;
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            // get the program state - do not run this until shortcutItems is created
+            // get the program state
             SetProgramState();
         }
 
@@ -126,7 +137,6 @@ namespace KickOff
             SaveProgramState();
         }
 
-
         public void SaveProgramState()
         {
             /// Get the current main window size and position, and the 
@@ -141,8 +151,15 @@ namespace KickOff
             ProgramState += Width.ToString();
             ProgramState += "\n";
 
-            foreach (Shortcut s in shortcutItems)
+            /// get the shortcuts from the panel so a new order
+            /// is saved 
+            /// 
+            //foreach (Shortcut s in Shortcuts)
+            IEnumerator scs = MainPanel.Children.GetEnumerator();
+            scs.Reset();
+            while (scs.MoveNext())
             {
+                Shortcut s = (Shortcut) scs.Current;
                 ProgramState += s.lnkData.ShortcutAddress + "\n";
             }
 
@@ -216,6 +233,7 @@ namespace KickOff
             //        e.Effects = DragDropEffects.None;
 
             //    e.Handled = true;
+            e.Handled = false;
         }
 
         private void MainWindow_MouseEnter(object sender, MouseEventArgs e)
@@ -257,17 +275,21 @@ namespace KickOff
         private void PlaceShortcutsintoView(string[] FileList)
         {
             // create the link(s) in main window
-            foreach (Shortcut sci in shortcutItems)
+            foreach (Shortcut sc in Shortcuts)
             {
-                if (!sci.IsRendered) // not already on display
+                if (!sc.IsRendered) // not already on display
                 {
-                    sci.Name = "_Icon" + IconCounter.ToString(); // used to match image to data
+                    sc.Name = "_Icon" + IconCounter.ToString(); // used to match image to data
+
+                    /// Set sorting order
+                    /// 
+                    sc.SortOrder = IconCounter;
 
                     /// Set the image bitmap
                     /// 
-                    sci.Width = sci.lnkData.Bitmap.BitmapSize; //.Bitmap.bitmap.Width;
-                    sci.Source = sci.lnkData.Bitmap.bitmapsource; //.Bitmap.bitmapsource;
-                    sci.Visibility = Visibility.Visible;
+                    sc.Width = sc.lnkData.Bitmap.BitmapSize; //.Bitmap.bitmap.Width;
+                    sc.Source = sc.lnkData.Bitmap.bitmapsource; //.Bitmap.bitmapsource;
+                    sc.Visibility = Visibility.Visible;
 
                     IconCounter++;
 
@@ -292,7 +314,7 @@ namespace KickOff
                     
                     BeginStoryboard enterBeginStoryboard = new BeginStoryboard
                     {
-                        Name = sci.Name + "_esb",
+                        Name = sc.Name + "_esb",
                         Storyboard = mo_storyboard
                     };
 
@@ -301,61 +323,124 @@ namespace KickOff
 
                     var moe = new EventTrigger(MouseEnterEvent);
                     moe.Actions.Add(enterBeginStoryboard);
-                    sci.Triggers.Add(moe);
+                    sc.Triggers.Add(moe);
                     var mle = new EventTrigger(MouseLeaveEvent);
                     mle.Actions.Add(
                         new StopStoryboard
                         {
                             BeginStoryboardName = enterBeginStoryboard.Name
                         });
-                    sci.Triggers.Add(mle);
+                    sc.Triggers.Add(mle);
 
                     // Add a popup to display the link name when the mouse is over
                     TextBlock popupText = new TextBlock();
                     // Description is Comment 
                     popupText.Text =
-                    System.IO.Path.GetFileNameWithoutExtension(sci.lnkData.ShortcutAddress);
-                    if (popupText.Text != sci.lnkData.Description)
-                        popupText.Text += "\n" + sci.lnkData.Description;
+                    System.IO.Path.GetFileNameWithoutExtension(sc.lnkData.ShortcutAddress);
+                    if (popupText.Text != sc.lnkData.Description)
+                        popupText.Text += "\n" + sc.lnkData.Description;
                     popupText.Background = Brushes.AntiqueWhite;
                     popupText.Foreground = Brushes.Black;
-                    sci.lnkPopup.Child = popupText;
-                    sci.lnkPopup.PlacementTarget = sci;
-                    sci.lnkPopup.IsOpen = false;
-                    sci.lnkPopup.Placement = PlacementMode.MousePoint;//.Center;
+                    sc.lnkPopup.Child = popupText;
+                    sc.lnkPopup.PlacementTarget = sc;
+                    sc.lnkPopup.IsOpen = false;
+                    sc.lnkPopup.Placement = PlacementMode.MousePoint;//.Center;
 
                     // add handlers for popup
-                    sci.MouseEnter += SCI_MouseEnter; // turn on popup
-                    sci.MouseLeave += SCI_MouseLeave; // turn off popup
-                    sci.MouseLeftButtonUp += SCI_MouseLeftButtonUp; // Add mouse event handler to run the shortcut
+                    //sc.MouseEnter += SCI_MouseEnter; // turn on popup
+                    //sc.MouseLeave += SCI_MouseLeave; // turn off popup
+                    sc.MouseLeftButtonUp += SCI_MouseLeftButtonUp; // Add mouse event handler to run the shortcut
 
                     // right click menu
-                    sci.MouseRightButtonUp += Sci_MouseRightButtonUp;
-
+                    sc.MouseRightButtonUp += Sci_MouseRightButtonUp;
+                    //sc.AllowDrop=true;
+                    //sc.Drop += Sc_Drop;
+                    //sc.MouseRightButtonDown += Sc_MouseRightButtonDown;
+                    //sc.DragOver += Sc_DragOver;
                     // load and mark as loaded (first or it is not in the collections's copy)
-                    sci.IsRendered = true;
+                    sc.IsRendered = true;
 
-                    MainPanel.Children.Add(sci);
+                    MainPanel.Children.Add(sc);
                 }
             }
 
             return;
         }
 
+        private void Sc_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            Shortcut _sc = sender as Shortcut;
+            DataObject dragData = new DataObject("Shortcut", _sc.lnkData.ShortcutAddress);
+            DragDrop.DoDragDrop(_sc, dragData, DragDropEffects.Move);
+        }
+
+
+        private void Sc_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent("Shortcut"))
+            {
+                e.Effects = DragDropEffects.Move;
+                e.Handled = true;
+            }
+            else
+            {
+                e.Effects = DragDropEffects.None;
+                e.Handled = false;
+            }
+        }
+        private void Sc_Drop(object sender, DragEventArgs e)
+        {
+            string[] dataFormats = e.Data.GetFormats(true);
+
+            // If the DataObject contains string data, extract it.
+            if (e.Data.GetDataPresent("Shortcut"))
+            {
+                Shortcut sc = (Shortcut)sender;
+                Shortcut t = (Shortcut)e.Source;
+                if (t != sc)
+                {
+                    try
+                    {
+                        // remove the shortcut from the list, the panel and destroy itself
+                        if (sc != null && MainPanel.Children.Contains(sc))
+                        {
+                            // Deleting an object requires anything that may 
+                            // reference it like events to be doing this 
+                            // need to be cleared
+
+                            int target = MainPanel.Children.IndexOf(t);
+                            sc.Triggers.Clear();
+                            // must be removed first before inserting it with new index
+                            MainPanel.Children.Remove(sc);
+                            MainPanel.Children.Insert(target, sc);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new Exception(ex.Message);
+                    }
+                    //throw new NotImplementedException();
+                }
+            }
+        }
         private void Sci_MouseRightButtonUp(object sender, MouseButtonEventArgs mssgEvent)
         {
             Shortcut sc = (Shortcut)sender;
             try
             {
                 // remove the shortcut from the list, the panel and destroy itself
-                if (MainPanel.Children.Contains(sc))
+                if (sc != null && MainPanel.Children.Contains(sc))
                 {
-                    // doing this makes problems if other triggers like mouseleave need to refer to the control
-                    //MainPanel.Children.Remove(sc);
-                    sc.Visibility = Visibility.Hidden;
-                    sc.IsEnabled = false;
+                    // Deleting an object requires anything that may 
+                    // reference it like events to be doing this 
+                    // need to be cleared
 
-                    shortcutItems.Remove(sc);
+                    sc.Triggers.Clear();
+                    int target = MainPanel.Children.IndexOf(sc);
+                    MainPanel.Children.Remove(sc);  
+                    //MainPanel.Children.Insert(target - 2, sc);
+
+                    //Shortcuts.Remove(sc);
                 }
             }
             catch (Exception ex)
@@ -481,8 +566,8 @@ namespace KickOff
 
         public ObservableCollection<Shortcut> ShortcutItems
         {
-            get { return shortcutItems; }
-            set { shortcutItems = value; }
+            get { return Shortcuts; }
+            set { Shortcuts = value; }
         }
 
         /// <summary>
@@ -511,12 +596,12 @@ namespace KickOff
                         IsRendered = false
                     };
 
-                    var items = shortcutItems.Where(x => x.lnkData.ShortcutAddress == FilePath);
+                    var items = Shortcuts.Where(x => x.lnkData.ShortcutAddress == FilePath);
 
                     if (items.Count() == 0) // the link imported is not in the existing list so add it
                     {
                         /// Add the shortcut to the list
-                        shortcutItems.Add(sc);
+                        Shortcuts.Add(sc);
                     }
                 }
             }
@@ -528,12 +613,13 @@ namespace KickOff
     {
         public Shortcut()
         {
-
+            Margin = new Thickness(4); // all same// (2, 2, 2, 2); //left,top,right,bottom
         }
 
         public LnkData lnkData { get; set; }
         public bool IsRendered { get; set; }
         public Popup lnkPopup { get; set; }
+        public int SortOrder { get; set; }
     }
 
 } //------------- Namespace
