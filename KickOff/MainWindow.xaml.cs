@@ -51,12 +51,12 @@ namespace KickOff
     /// </summary>
     public partial class MainWindow : Window
     {
-        private ObservableCollection<Shortcut> Shortcuts= new ObservableCollection<Shortcut>();//null;
+        private ObservableCollection<Shortcut> Shortcuts = new ObservableCollection<Shortcut>();//null;
         //private WrapPanel MainPanel = new WrapPanel();
         //private DockPanel MainPanel = new DockPanel();
         //private Grid MainPanel;
         private UniformGrid MainPanel = new UniformGrid();
-        private int IconCounter=0;
+        private int IconCounter = 0;
         private string ProgramState;
 
         public MainWindow()
@@ -159,7 +159,7 @@ namespace KickOff
             scs.Reset();
             while (scs.MoveNext())
             {
-                Shortcut s = (Shortcut) scs.Current;
+                Shortcut s = (Shortcut)scs.Current;
                 ProgramState += s.lnkData.ShortcutAddress + "\n";
             }
 
@@ -292,7 +292,7 @@ namespace KickOff
                     sc.Visibility = Visibility.Visible;
 
                     IconCounter++;
-
+                    /*
                     // Create Animations that modofy the shortcut icons
                     DoubleAnimation mo_animation = new DoubleAnimation
                     {
@@ -331,6 +331,7 @@ namespace KickOff
                             BeginStoryboardName = enterBeginStoryboard.Name
                         });
                     sc.Triggers.Add(mle);
+                    */
 
                     // Add a popup to display the link name when the mouse is over
                     TextBlock popupText = new TextBlock();
@@ -349,14 +350,18 @@ namespace KickOff
                     // add handlers for popup
                     //sc.MouseEnter += SCI_MouseEnter; // turn on popup
                     //sc.MouseLeave += SCI_MouseLeave; // turn off popup
-                    sc.MouseLeftButtonUp += SCI_MouseLeftButtonUp; // Add mouse event handler to run the shortcut
 
-                    // right click menu
-                    sc.MouseRightButtonUp += Sci_MouseRightButtonUp;
-                    //sc.AllowDrop=true;
-                    //sc.Drop += Sc_Drop;
+                    //sc.MouseLeftButtonUp += SCI_MouseLeftButtonUp; // Add mouse event handler to run the shortcut
+
+                    //sc.PreviewMouseLeftButtonDown += SC_PreviewMouseLeftButtonDown;
+                    //sc.MouseLeftButtonDown += Sc_MouseLeftButtonDown;
+                    //sc.MouseLeftButtonUp += Sc_MouseLeftButtonUp;
+                    sc.MouseMove += SCmouseMove;
+                    //sc.DragEnter += SCdragEnter;
+                    sc.AllowDrop=true;
+                    sc.Drop += SCdrop;
                     //sc.MouseRightButtonDown += Sc_MouseRightButtonDown;
-                    //sc.DragOver += Sc_DragOver;
+                    sc.DragOver += SCdragOver;
                     // load and mark as loaded (first or it is not in the collections's copy)
                     sc.IsRendered = true;
 
@@ -367,37 +372,41 @@ namespace KickOff
             return;
         }
 
-        private void Sc_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        private void Sc_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            Shortcut _sc = sender as Shortcut;
-            DataObject dragData = new DataObject("Shortcut", _sc.lnkData.ShortcutAddress);
-            DragDrop.DoDragDrop(_sc, dragData, DragDropEffects.Move);
+            if (repositioning)
+            {
+                Shortcut s = (Shortcut)sender;
+                IEnumerator scs = MainPanel.Children.GetEnumerator();
+                scs.Reset();
+                Shortcut t;
+                while (scs.MoveNext())
+                {
+                    t = (Shortcut)scs.Current;
+                    if (t.IsMouseOver)
+                    {
+                        int target = MainPanel.Children.IndexOf(t);
+                        s.Triggers.Clear();
+                        // must be removed first before inserting it with new index
+                        MainPanel.Children.Remove(s);
+                        MainPanel.Children.Insert(target, s);
+                    }
+                }
+                repositioning = false;
+            }
         }
 
-
-        private void Sc_DragOver(object sender, DragEventArgs e)
+        private void SCdrop(object sender, DragEventArgs e)
         {
-            if (e.Data.GetDataPresent("Shortcut"))
-            {
-                e.Effects = DragDropEffects.Move;
-                e.Handled = true;
-            }
-            else
-            {
-                e.Effects = DragDropEffects.None;
-                e.Handled = false;
-            }
-        }
-        private void Sc_Drop(object sender, DragEventArgs e)
-        {
-            string[] dataFormats = e.Data.GetFormats(true);
+            //string[] dataFormats = e.Data.GetFormats(true);
 
             // If the DataObject contains string data, extract it.
-            if (e.Data.GetDataPresent("Shortcut"))
+            if (e.Data.GetDataPresent(SC_DROP_FORMAT))
             {
-                Shortcut sc = (Shortcut)sender;
-                Shortcut t = (Shortcut)e.Source;
-                if (t != sc)
+                Shortcut sc = (Shortcut)e.Data.GetData(SC_DROP_FORMAT);
+                Shortcut trg = (Shortcut)e.OriginalSource;
+                //Shortcut trg = (Shortcut)this.InputHitTest(e.GetPosition(this));
+                if (trg != sc)
                 {
                     try
                     {
@@ -408,7 +417,7 @@ namespace KickOff
                             // reference it like events to be doing this 
                             // need to be cleared
 
-                            int target = MainPanel.Children.IndexOf(t);
+                            int target = MainPanel.Children.IndexOf(trg);
                             sc.Triggers.Clear();
                             // must be removed first before inserting it with new index
                             MainPanel.Children.Remove(sc);
@@ -423,8 +432,67 @@ namespace KickOff
                 }
             }
         }
-        private void Sci_MouseRightButtonUp(object sender, MouseButtonEventArgs mssgEvent)
+
+        private void SCdragOver(object sender, DragEventArgs e)
         {
+            //Shortcut src = (Shortcut)sender;
+            //Shortcut trg = (Shortcut) e.Source;
+
+
+            //Shortcut trg = (Shortcut)this.InputHitTest(e.GetPosition(this));
+            IInputElement trg = Mouse.DirectlyOver;
+
+            if (e.Data.GetDataPresent(SC_DROP_FORMAT) )//&& trg != null) //src.Name != trg.Name)
+            {
+                e.Effects = DragDropEffects.Move;
+                e.Handled = true;
+            }
+            else
+            {
+                e.Effects = DragDropEffects.None;
+                e.Handled = false;
+            }
+        }
+
+        private bool repositioning = false;
+
+        private void SCmouseMove(object sender, MouseEventArgs e)
+        {
+            // Get the current mouse position
+            Point mousePos = e.GetPosition(null);
+            Vector diff = startPoint - mousePos;
+
+            if ( ! repositioning && e.LeftButton == MouseButtonState.Pressed &&
+                (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance))
+            {
+                repositioning = true;
+
+                // Get the dragged item
+                Shortcut _sc = sender as Shortcut;
+
+                //_sc.AllowDrop = false;
+                DataObject dragData = new DataObject(SC_DROP_FORMAT, _sc );
+                DragDrop.DoDragDrop(_sc, dragData, DragDropEffects.Move);
+            }
+            else
+                repositioning = false;
+        }
+
+        private Point startPoint;
+        private static string SC_DROP_FORMAT = "Shortcut";
+
+        private void SC_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // Store the mouse position
+            startPoint = e.GetPosition(null);
+
+            //MainPanel.CaptureMouse();
+            //((Shortcut)sender).AllowDrop = false;
+
+            e.Handled = true;
+
+            /*
             Shortcut sc = (Shortcut)sender;
             try
             {
@@ -437,7 +505,7 @@ namespace KickOff
 
                     sc.Triggers.Clear();
                     int target = MainPanel.Children.IndexOf(sc);
-                    MainPanel.Children.Remove(sc);  
+                    MainPanel.Children.Remove(sc);
                     //MainPanel.Children.Insert(target - 2, sc);
 
                     //Shortcuts.Remove(sc);
@@ -446,6 +514,21 @@ namespace KickOff
             catch (Exception ex)
             {
                 throw new Exception(ex.Message);
+            }
+            */
+        }
+
+        private void Sc_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent("Shortcut"))
+            {
+                e.Effects = DragDropEffects.Move;
+                e.Handled = true;
+            }
+            else
+            {
+                e.Effects = DragDropEffects.None;
+                e.Handled = false;
             }
         }
         private void SCI_MouseEnter(object sender, MouseEventArgs e)
@@ -459,9 +542,8 @@ namespace KickOff
             ((Shortcut)sender).lnkPopup.IsOpen = false;
             e.Handled = false;
         }
-        private void SCI_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs mouseEvent)
+        private void RunShortcut(Shortcut scLink)
         {
-            Shortcut scLink = (Shortcut)sender;
                 try
                 {
                     if (scLink != null)
@@ -558,7 +640,7 @@ namespace KickOff
                     throw new Exception("Program run error: Unknown internal error. Program data lookup failed.");
                 }
 
-                mouseEvent.Handled = true;
+                //mouseEvent.Handled = true;
 
             return;
         }
@@ -620,6 +702,35 @@ namespace KickOff
         public bool IsRendered { get; set; }
         public Popup lnkPopup { get; set; }
         public int SortOrder { get; set; }
+    }
+
+    public static class Utility
+    {
+        public static object GetObjectAtPoint<ItemContainer>(this ItemsControl control, Point p)
+                                             where ItemContainer : DependencyObject
+        {
+            // ItemContainer - can be ListViewItem, or TreeViewItem and so on(depends on control)
+            ItemContainer obj = GetContainerAtPoint<ItemContainer>(control, p);
+            if (obj == null)
+                return null;
+
+            return control.ItemContainerGenerator.ItemFromContainer(obj);
+        }
+
+        public static ItemContainer GetContainerAtPoint<ItemContainer>(this ItemsControl control, Point p)
+                                 where ItemContainer : DependencyObject
+        {
+            HitTestResult result = VisualTreeHelper.HitTest(control, p);
+            DependencyObject obj = result.VisualHit;
+
+            while (VisualTreeHelper.GetParent(obj) != null && !(obj is ItemContainer))
+            {
+                obj = VisualTreeHelper.GetParent(obj);
+            }
+
+            // Will return null if not found
+            return obj as ItemContainer;
+        }
     }
 
 } //------------- Namespace
