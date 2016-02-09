@@ -100,7 +100,7 @@ namespace KickOff
 
                             bIsReference = false,
                             bTargetIsDirectory = true,
-                            Bitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
+                            icoBitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
                             ShortcutAddress = shortcutAddress
                         };
                     }
@@ -123,7 +123,7 @@ namespace KickOff
 
                                 bIsReference = bIsRef,
                                 bTargetIsDirectory = false,
-                                Bitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
+                                icoBitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
                                 ShortcutAddress = shortcutAddress
                             };
                         }
@@ -153,7 +153,7 @@ namespace KickOff
 
                                     bIsReference = false,
                                     bTargetIsDirectory = false,
-                                    Bitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
+                                    icoBitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
                                     ShortcutAddress = shortcutAddress,
                                     bTargetIsFile = true
                                 };
@@ -199,7 +199,7 @@ namespace KickOff
 
                                 bIsReference = false,
                                 bTargetIsDirectory = false,
-                                Bitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
+                                icoBitmap = ico2bmap.GetBitmapFromFileIcon(shortcutAddress),
                                 ShortcutAddress = shortcutAddress,
                                 bTargetIsFile = true
                             };
@@ -401,7 +401,7 @@ namespace KickOff
 
         public bool bIsReference { get; set; }
         public bool bTargetIsDirectory { get; set; }
-        public IconBitMap Bitmap { get; set; }
+        public IconBitMap icoBitmap { get; set; }
         public bool bTargetIsFile { get; set; }
         public string ShortcutAddress { get; set; }
     }

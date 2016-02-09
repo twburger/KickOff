@@ -32,10 +32,12 @@ namespace KickOff
                 ibm = new IconBitMap()
                 {
                     BitmapSize = bm.Width,
-                    //bitmap = bm,
+                    bitmap = bm,
                     bitmapsource = bmsource
                     //writeablebitmap = wbitmap
                 };
+
+                //bm.Dispose();
             }
             catch// (Exception e)
             {
@@ -207,8 +209,7 @@ namespace KickOff
         }
         public int BitmapSize { get; set; }
         public BitmapSource bitmapsource { get; set; }
-
-        //public Bitmap bitmap { get; set; }
+        public Bitmap bitmap { get; set; }
         //public WriteableBitmap writeablebitmap { get; set; }
     }
 }
