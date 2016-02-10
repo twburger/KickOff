@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Collections;
 using System.Windows.Media;
+using System.Windows.Interop;
 
 //using System.Security;
 
@@ -31,6 +32,9 @@ namespace KickOff
         [DllImport("user32.dll")]
         extern private static int SetWindowLong(IntPtr hwnd, int index, int value);
 
+        [DllImport("user32.dll")]
+        private static extern bool EnableMenuItem(IntPtr hMenu,  uint uIDEnableItem, uint uEnable);
+
         internal static void HideMinimizeAndMaximizeButtons(this Window window)
         {
             IntPtr hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
@@ -45,7 +49,39 @@ namespace KickOff
 
             SetWindowLong(hwnd, GWL_STYLE, (currentStyle | WS_MAXIMIZEBOX | WS_MINIMIZEBOX));
         }
+
+        // --------------------------------------------------------------------------------------
+
+        [DllImport("user32.dll")]
+        extern private static IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
+
+        [DllImport("user32.dll")]
+        extern private static bool InsertMenu(IntPtr hMenu, Int32 wPosition, Int32 wFlags, Int32 wIDNewItem, string lpNewItem);
+
+        /// Define our Constants we will use
+        //private const Int32 WM_SYSCOMMAND = 0x112;
+        private const Int32 MF_SEPARATOR = 0x800;
+        private const Int32 MF_BYPOSITION = 0x400;
+        private const Int32 MF_STRING = 0x0;
+        public const Int32 SettingsSysMenuID = 9000;
+        public const Int32 AboutSysMenuID = 9001;
+
+        internal static void ModifyMenu(this Window window)
+        {
+            /// Get the Handle for the Forms System Menu
+            IntPtr systemMenuHandle = GetSystemMenu(new System.Windows.Interop.WindowInteropHelper(window).Handle, false);
+
+            /// Create our new System Menu items just before the Close menu item
+            InsertMenu(systemMenuHandle, 5, MF_BYPOSITION | MF_SEPARATOR, 0, string.Empty); // <-- Add a menu seperator
+            InsertMenu(systemMenuHandle, 6, MF_BYPOSITION, SettingsSysMenuID, "Settings..");
+            InsertMenu(systemMenuHandle, 7, MF_BYPOSITION, AboutSysMenuID, "About..");
+
+            // Attach our WndProc handler to this Window
+            //HwndSource source = HwndSource.FromHwnd(systemMenuHandle);
+            //source.AddHook(new HwndSourceHook(WndProc));
+        }
     }
+
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
@@ -58,10 +94,12 @@ namespace KickOff
         private UniformGrid MainPanel = new UniformGrid();
         private int ShortcutCounter = 0;
         private string ProgramState;
-        private ContextMenu shortcutMenu = new ContextMenu();
+        private ContextMenu shortcutCtxMenu = new ContextMenu();
 
         public MainWindow()
         {
+            InitializeComponent();
+
             // Windows logoff or shutdown
             Application.Current.SessionEnding += Current_SessionEnding;
 
@@ -78,11 +116,12 @@ namespace KickOff
             //this.WindowStyle = WindowStyle.None; this.
             //AllowsTransparency = true;
 
-            // Turn off the min and max buttons
+            // Turn off the min and max buttons and add my menu items to the main window context menu
             WindowStyle = WindowStyle.SingleBorderWindow;
             this.SourceInitialized += (x, y) =>
             {
                 this.HideMinimizeAndMaximizeButtons();
+                this.ModifyMenu();
             };
 
             ResizeMode = ResizeMode.CanResize;
@@ -109,20 +148,102 @@ namespace KickOff
             ShortcutCounter = 0;
 
             /// MENUS
-
+            // Shortcut Right Click context menu
             MenuItem miSC_Delete = new MenuItem();
             miSC_Delete.Width = 120;
             miSC_Delete.Header = "_Delete";
             miSC_Delete.Click += MiSC_Delete_Click;
-            shortcutMenu.Items.Add(miSC_Delete);
+            shortcutCtxMenu.Items.Add(miSC_Delete);
 
             // create a panel to draw in
-            Content = MainPanel; 
+            Content = MainPanel;
 
             // add load behavior to change size and position to last saved
             Loaded += MainWindow_Loaded;
-            
+
             //DataContext = this;
+        }
+        private const Int32 WM_SYSTEMMENU = 0xa4; // 164
+        private const Int32 WP_SYSTEMMENU = 0x02; // 2
+        private const Int32 WM_SYSCOMMAND = 0x112; // 274 <--------THIS IS the menu Select
+        private const Int32 WM_NCRBUTTONDOWN = 0xA4; //164
+        private const Int32 WM_NCLBUTTONDOWN = 0xA1; //161
+        private const Int32 WM_CONTEXTMENU = 0x7B; //123
+        private const Int32 WM_ENTERIDLE = 0x121; //289
+        private const Int32 WM_INITMENUPOPUP = 0x0117; // 279
+        private const Int32 WM_MENUSELECT = 0x011f; // 287
+        private const Int32 MF_MOUSESELECT = 0x00008000; //32768
+        private const Int32 MF_SYSMENU = 0x00002000; //8192
+
+        private void debugout(int msg, IntPtr wParam, IntPtr lParam)
+        {
+            try
+            {
+                int hiP = High16(lParam); // Flags
+                int loP = Low16(lParam); //menu item
+                int hiW = High16(wParam); // Flags
+                int loW = Low16(wParam); //menu item
+
+                Debug.WriteLine("MSG: {0} wParam low: {1} wParam high: {2} lParam low: {3} lParam high: {4}",
+                    msg, loW, hiW, loP, loP);
+            }
+            catch
+            {
+                Debug.WriteLine("MSG: {0} wParam: {1} lParam: {2} ", msg, wParam, lParam);
+            }
+
+        }
+        int GetIntUnchecked(IntPtr value)
+        {
+            return IntPtr.Size == 8 ? unchecked((int)value.ToInt64()) : value.ToInt32();
+        }
+        int Low16(IntPtr value)
+        {
+            return unchecked((short)GetIntUnchecked(value));
+        }
+        int High16(IntPtr value)
+        {
+            return unchecked((short)(((uint)GetIntUnchecked(value)) >> 16));
+        }
+        private IntPtr ProcessCustomMainContext(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (!handled)
+            {
+                int hiP = High16(wParam); // Flags
+                int loP = Low16(wParam); //menu item
+
+                switch ((uint)msg)
+                {
+                    case WM_SYSCOMMAND:
+                        debugout(msg, wParam, lParam);
+                        switch (loP)
+                        {
+                            case WindowExtensions.SettingsSysMenuID:
+                                MessageBox.Show("Settingstext", "Caption Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+                                break;
+                            case WindowExtensions.AboutSysMenuID:
+                                MessageBox.Show("About text", "Caption About", MessageBoxButton.OK, MessageBoxImage.Information);
+                                break;
+                        }
+                        break;
+
+                    case WM_MENUSELECT:
+
+                        debugout(msg, wParam, lParam);
+                        switch (hiP)
+                        {
+                            case MF_SYSMENU:
+                                debugout(msg, wParam, lParam);
+                                break;
+
+                            case MF_MOUSESELECT:
+                                debugout(msg, wParam, lParam);
+                                break;
+                        }
+                        break;
+                }
+            }
+            return IntPtr.Zero;
         }
 
         private void MiSC_Delete_Click(object sender, RoutedEventArgs e)
@@ -132,16 +253,15 @@ namespace KickOff
             Shortcut sc = cm.PlacementTarget as Shortcut;
             DeleteShortcut(sc);
         }
-
-        private void MMain_About_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("The ABOUT box", "About Kickoff" , MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             // get the program state
             SetProgramState();
+
+            //Add a handler to process custom main context items added
+            IntPtr windowhandle = new WindowInteropHelper(this).Handle;
+            HwndSource hwndSource = HwndSource.FromHwnd(windowhandle);
+            hwndSource.AddHook(new HwndSourceHook(ProcessCustomMainContext));
         }
 
         private void Current_SessionEnding(object sender, SessionEndingCancelEventArgs e)
@@ -274,7 +394,7 @@ namespace KickOff
             // init base code
             //base.OnDrop(eDropEvent);  // do not use this code does all needed
 
-            string[] dataFormats = eDropEvent.Data.GetFormats(true);
+            //string[] dataFormats = eDropEvent.Data.GetFormats(true);
 
             // If the DataObject contains string data, extract it.
             if (eDropEvent.Data.GetDataPresent(DataFormats.FileDrop))
@@ -382,7 +502,7 @@ namespace KickOff
                     sc.Drop += SC_drop;
 
                     // add the context menu
-                    sc.ContextMenu = shortcutMenu;
+                    sc.ContextMenu = shortcutCtxMenu;
 
                     // load and mark as loaded (first or it is not in the collections's copy)
                     sc.IsRendered = true;
