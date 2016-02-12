@@ -15,3 +15,5 @@ D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.Properties
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.csproj.GenerateResource.Cache
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.exe
 D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\KickOff.pdb
+D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\IconSelect.g.cs
+D:\Users\User\Documents\My Projects\KickOff\KickOff\obj\Debug\IconSelect.baml

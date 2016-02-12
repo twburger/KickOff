@@ -37,7 +37,7 @@ namespace KickOff
                     //writeablebitmap = wbitmap
                 };
 
-                //bm.Dispose();
+                bm.Dispose();
             }
             catch// (Exception e)
             {

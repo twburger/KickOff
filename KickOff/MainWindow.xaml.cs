@@ -137,7 +137,7 @@ namespace KickOff
             MainPanel.AllowDrop = true;
             MainPanel.Visibility = Visibility.Visible;
 
-            // add handlers for mouse leaving the main window
+            // add handlers for mouse entering and leaving the main window
             MouseEnter += MainWindow_MouseEnter;
             MouseLeave += MainWindow_MouseLeave;
             DragEnter += MainWindow_DragEnter;
@@ -149,6 +149,12 @@ namespace KickOff
 
             /// MENUS
             // Shortcut Right Click context menu
+            MenuItem miSC_ChangeICO = new MenuItem();
+            miSC_ChangeICO.Width = 160;
+            miSC_ChangeICO.Header = "_Change Icon";
+            miSC_ChangeICO.Click += MiSC_ChangeICO_Click;
+            shortcutCtxMenu.Items.Add(miSC_ChangeICO);
+
             MenuItem miSC_Delete = new MenuItem();
             miSC_Delete.Width = 120;
             miSC_Delete.Header = "_Delete";
@@ -163,15 +169,25 @@ namespace KickOff
 
             //DataContext = this;
         }
+
+        private void MiSC_ChangeICO_Click(object sender, RoutedEventArgs e)
+        {
+            IconSelect iconSelector = new IconSelect("shell32.dll");
+
+            iconSelector.Show();
+
+            //throw new NotImplementedException();
+        }
+
         private const Int32 WM_SYSTEMMENU = 0xa4; // 164
         private const Int32 WP_SYSTEMMENU = 0x02; // 2
-        private const Int32 WM_SYSCOMMAND = 0x112; // 274 <--------THIS IS the menu Select
+        private const Int32 WM_SYSCOMMAND = 0x112; // 274 <------ THIS message is sent when menu item selected in Window menu
         private const Int32 WM_NCRBUTTONDOWN = 0xA4; //164
         private const Int32 WM_NCLBUTTONDOWN = 0xA1; //161
         private const Int32 WM_CONTEXTMENU = 0x7B; //123
         private const Int32 WM_ENTERIDLE = 0x121; //289
         private const Int32 WM_INITMENUPOPUP = 0x0117; // 279
-        private const Int32 WM_MENUSELECT = 0x011f; // 287
+        private const Int32 WM_MENUSELECT = 0x011f; //  <-------- Fires when mouse is over item
         private const Int32 MF_MOUSESELECT = 0x00008000; //32768
         private const Int32 MF_SYSMENU = 0x00002000; //8192
 
@@ -209,35 +225,22 @@ namespace KickOff
         {
             if (!handled)
             {
-                int hiP = High16(wParam); // Flags
-                int loP = Low16(wParam); //menu item
-
                 switch ((uint)msg)
                 {
                     case WM_SYSCOMMAND:
-                        debugout(msg, wParam, lParam);
+                        //debugout(msg, wParam, lParam);
+                        int hiP = High16(wParam); // Flags
+                        int loP = Low16(wParam); //menu item
+
                         switch (loP)
                         {
                             case WindowExtensions.SettingsSysMenuID:
                                 MessageBox.Show("Settingstext", "Caption Settings", MessageBoxButton.OK, MessageBoxImage.Information);
+                                handled = true;
                                 break;
                             case WindowExtensions.AboutSysMenuID:
                                 MessageBox.Show("About text", "Caption About", MessageBoxButton.OK, MessageBoxImage.Information);
-                                break;
-                        }
-                        break;
-
-                    case WM_MENUSELECT:
-
-                        debugout(msg, wParam, lParam);
-                        switch (hiP)
-                        {
-                            case MF_SYSMENU:
-                                debugout(msg, wParam, lParam);
-                                break;
-
-                            case MF_MOUSESELECT:
-                                debugout(msg, wParam, lParam);
+                                handled = true;
                                 break;
                         }
                         break;
@@ -329,9 +332,9 @@ namespace KickOff
                 IEnumerable<string> items = s.Skip(6);
                 s = items.ToArray<string>();
 
-                CreateShortCut(s);
+                CreateShortCuts(s);
 
-                PlaceShortcutsintoView(s);
+                PlaceShortcutsintoView();// s);
             }
         }
 
@@ -403,9 +406,9 @@ namespace KickOff
 
                 /// Create the shortcuts
                 /// 
-                CreateShortCut(FileList);
+                CreateShortCuts(FileList);
 
-                PlaceShortcutsintoView(FileList);
+                PlaceShortcutsintoView(); // FileList);
 
                 eDropEvent.Handled = true;
             }
@@ -413,7 +416,7 @@ namespace KickOff
                 eDropEvent.Handled = false;
         }
 
-        private void PlaceShortcutsintoView(string[] FileList)
+        private void PlaceShortcutsintoView() //string[] FileList)
         {
             // create the link(s) in main window
             foreach (Shortcut sc in Shortcuts)
@@ -665,12 +668,13 @@ namespace KickOff
         private void SCI_MouseEnter(object sender, MouseEventArgs e)
         {
             ((Shortcut)sender).lnkPopup.IsOpen = true;
-
+            Mouse.OverrideCursor = Cursors.Hand;
             e.Handled = false;
         }
         private void SCI_MouseLeave(object sender, MouseEventArgs e)
         {
             ((Shortcut)sender).lnkPopup.IsOpen = false;
+            Mouse.OverrideCursor = Cursors.Arrow;
             e.Handled = false;
         }
         private void RunShortcut(Shortcut scLink)
@@ -787,7 +791,7 @@ namespace KickOff
         /// Create the KickOff link
         /// </summary>
         /// <param name="FileList"></param>
-        private void CreateShortCut(string[] FileList)
+        private void CreateShortCuts(string[] FileList)
         {
             foreach (string FilePath in FileList)
             {
