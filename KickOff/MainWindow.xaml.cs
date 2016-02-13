@@ -14,6 +14,7 @@ using System.Runtime.InteropServices;
 using System.Collections;
 using System.Windows.Media;
 using System.Windows.Interop;
+using static KickOff.lnkio;
 
 //using System.Security;
 
@@ -95,6 +96,8 @@ namespace KickOff
         private int ShortcutCounter = 0;
         private string ProgramState;
         private ContextMenu shortcutCtxMenu = new ContextMenu();
+        private static char INI_SPLIT_CHAR = '^';
+        public static int USE_MAIN_ICON = ico2bmap.USE_MAIN_ICON;
 
         public MainWindow()
         {
@@ -172,11 +175,30 @@ namespace KickOff
 
         private void MiSC_ChangeICO_Click(object sender, RoutedEventArgs e)
         {
-            IconSelect iconSelector = new IconSelect("shell32.dll");
+            MenuItem mi = (MenuItem)sender;
+            ContextMenu cm = (ContextMenu)mi.Parent;
+            Shortcut sc = cm.PlacementTarget as Shortcut;
+            string[] iconsourcefiles = new string[] {
+                ( sc.lnkData.bIsReference || sc.lnkData.bTargetIsDirectory) ? string.Empty : sc.lnkData.OriginalTargetPath,
+                "shell32.dll",
+                "imageres.dll",
+                "DDORes.dll"
+            };
 
-            iconSelector.Show();
+            IconSelect iconSelector = new IconSelect(iconsourcefiles) {Owner = this};
+            
+            // if the user selected something so the value is not false or null for retruned bool? 
+            if (true == iconSelector.ShowDialog())
+            {
+                var x = iconSelector.DialogResult;
+                sc.iconIndex = iconSelector.idxIcon;
+                sc.iconFilePath = iconsourcefiles[iconSelector.idxFile];
 
-            //throw new NotImplementedException();
+                // set the new icon
+                IconBitMap ibm = ico2bmap.ExtractICO(sc.iconFilePath, sc.iconIndex);
+                sc.Source = ibm.bitmapsource;
+                sc.Width = ibm.BitmapSize;
+            }
         }
 
         private const Int32 WM_SYSTEMMENU = 0xa4; // 164
@@ -200,12 +222,12 @@ namespace KickOff
                 int hiW = High16(wParam); // Flags
                 int loW = Low16(wParam); //menu item
 
-                Debug.WriteLine("MSG: {0} wParam low: {1} wParam high: {2} lParam low: {3} lParam high: {4}",
-                    msg, loW, hiW, loP, loP);
+                //Debug.WriteLine("MSG: {0} wParam low: {1} wParam high: {2} lParam low: {3} lParam high: {4}", msg, loW, hiW, loP, loP);
             }
-            catch
+            catch (Exception e)
             {
-                Debug.WriteLine("MSG: {0} wParam: {1} lParam: {2} ", msg, wParam, lParam);
+                lnkio.WriteProgramLog(e.Message);
+                //Debug.WriteLine("MSG: {0} wParam: {1} lParam: {2} ", msg, wParam, lParam);
             }
 
         }
@@ -302,7 +324,9 @@ namespace KickOff
             while (scs.MoveNext())
             {
                 Shortcut s = (Shortcut)scs.Current;
-                ProgramState += s.lnkData.ShortcutAddress + "\n";
+                ProgramState += s.lnkData.ShortcutAddress + INI_SPLIT_CHAR;
+                ProgramState += s.iconFilePath + INI_SPLIT_CHAR;
+                ProgramState += s.iconIndex.ToString() + "\n";
             }
 
             lnkio.WriteProgramState(ProgramState);
@@ -328,7 +352,7 @@ namespace KickOff
                 Application.Current.MainWindow.Height = Double.Parse(s[4]);
                 Application.Current.MainWindow.Width = Double.Parse(s[5]);
 
-                // skip the first 3 elements of the array
+                // skip the first 6 lines for the setting of the 3 elements of the array
                 IEnumerable<string> items = s.Skip(6);
                 s = items.ToArray<string>();
 
@@ -568,12 +592,10 @@ namespace KickOff
                     }
                     catch (Exception ex)
                     {
-                        throw new Exception(ex.Message);
+                        lnkio.WriteProgramLog(ex.Message);
+                        //throw new Exception(ex.Message);
                     }
-                    finally
-                    {
-                        
-                    }
+                    //finally{}
                 }
             }
             //throw new NotImplementedException();
@@ -649,7 +671,8 @@ namespace KickOff
             }
             catch (Exception ex)
             {
-                throw new Exception(ex.Message);
+                lnkio.WriteProgramLog(ex.Message);
+                //throw new Exception(ex.Message);
             }
         }
         private void Sc_DragOver(object sender, DragEventArgs e)
@@ -679,17 +702,17 @@ namespace KickOff
         }
         private void RunShortcut(Shortcut scLink)
         {
-                try
+            try
+            {
+                if (scLink != null)
                 {
-                    if (scLink != null)
+                    try
                     {
-                        try
-                        {
-                            Process p = null;
+                        Process p = null;
 
-                            // This is this a reference .appref-ms file or an URL or a data file
-                            if (scLink.lnkData.bTargetIsFile || scLink.lnkData.bIsReference)
-                            {
+                        // This is this a reference .appref-ms file or an URL or a data file
+                        if (scLink.lnkData.bTargetIsFile || scLink.lnkData.bIsReference)
+                        {
                             //if( scLink.lnkData.bIsReference ) {
                             //string n = @"rundll32.exe dfshim.dll,ShOpenVerbApplication http://github-windows.s3.amazonaws.com/GitHub.application#GitHub.application,Culture=neutral,PublicKeyToken=317444273a93ac29,processorArchitecture=x86";
                             //rundll32.exe dfshim.dll,ShOpenVerbShortcut D:\Users\User\Desktop\GitHub
@@ -697,89 +720,101 @@ namespace KickOff
                             //string b = a.ToString(); }
 
                             p = Process.Start(scLink.lnkData.ShortcutAddress);  // just send the link to the OS
+                        }
+                        else
+                        {
+                            // Prepare the process to run
+                            ProcessStartInfo start = new ProcessStartInfo();
+                            // Enter in the command line arguments, everything you would enter after the executable name itself
+                            if (scLink.lnkData.bTargetIsDirectory)
+                            {
+                                start.Arguments = scLink.lnkData.TargetPath;
+                                start.FileName = "explorer.exe";
+                                start.WorkingDirectory = scLink.lnkData.TargetPath;
                             }
                             else
                             {
-                                // Prepare the process to run
-                                ProcessStartInfo start = new ProcessStartInfo();
-                                // Enter in the command line arguments, everything you would enter after the executable name itself
-                                if (scLink.lnkData.bTargetIsDirectory)
-                                {
-                                    start.Arguments = scLink.lnkData.TargetPath;
-                                    start.FileName = "explorer.exe";
-                                    start.WorkingDirectory = scLink.lnkData.TargetPath;
-                                }
-                                else
-                                {
-                                    start.Arguments = scLink.lnkData.Arguments;
-                                    // Enter the executable to run, including the complete path
-                                    start.FileName = scLink.lnkData.TargetPath;
-                                    /// For cases where the starting working directory is like this:  %HOMEDRIVE%%HOMEPATH%
-                                    start.WorkingDirectory = Environment.ExpandEnvironmentVariables(scLink.lnkData.WorkingDirectory);
-                                    start.WorkingDirectory = System.IO.Path.GetFullPath(scLink.lnkData.WorkingDirectory);
-                                }
-                                // Do you want to show a console window?
-                                start.WindowStyle = ProcessWindowStyle.Normal;
-                                start.CreateNoWindow = true;
-                                start.UseShellExecute = false; // do not open reference using shell or args can not be used
+                                start.Arguments = scLink.lnkData.Arguments;
+                                // Enter the executable to run, including the complete path
+                                start.FileName = scLink.lnkData.TargetPath;
+                                /// For cases where the starting working directory is like this:  %HOMEDRIVE%%HOMEPATH%
+                                start.WorkingDirectory = Environment.ExpandEnvironmentVariables(scLink.lnkData.WorkingDirectory);
+                                start.WorkingDirectory = System.IO.Path.GetFullPath(scLink.lnkData.WorkingDirectory);
+                            }
+                            // Do you want to show a console window?
+                            start.WindowStyle = ProcessWindowStyle.Normal;
+                            start.CreateNoWindow = true;
+                            start.UseShellExecute = false; // do not open reference using shell or args can not be used
 
-                                /// Run the programm
-                                /// 
+                            /// Run the programm
+                            /// 
+                            try
+                            {
+                                p = Process.Start(start);
+                            }
+                            catch (Exception e)
+                            {
+                                lnkio.WriteProgramLog(e.Message);
+
+                                /// if the process fails it seems that the current working directory may be to blame
+                                /// For example: The GitBash shortcut uses as command args: "C:\Program Files\Git\git-bash.exe" --cd-to-home
+                                /// and the starting working directory of %HOMEDRIVE%%HOMEPATH%
+                                start.WorkingDirectory = string.Empty;//@"D:\Users\user";
                                 try
                                 {
                                     p = Process.Start(start);
                                 }
-                                catch
+                                catch (Exception e1)
                                 {
-                                    /// if the process fails it seems that the current working directory may be to blame
-                                    /// For example: The GitBash shortcut uses as command args: "C:\Program Files\Git\git-bash.exe" --cd-to-home
-                                    /// and the starting working directory of %HOMEDRIVE%%HOMEPATH%
-                                    start.WorkingDirectory = string.Empty;//@"D:\Users\user";
-                                    try { p = Process.Start(start); } catch { throw new Exception("Program run error: Program start failed"); }
+                                    lnkio.WriteProgramLog(e1.Message);
+                                    //throw new Exception("Program run error: Program start failed");
                                 }
                             }
-
-                            if (p == null) // could be that it just does not start 2+ instances
-                            {
-                                // throw new Exception("Program run error: Program did not run");
-                            }
                         }
-                        catch { throw new Exception("Program run error: Program start failed"); }
 
-                        //int exitCode;
-                        //// Run the external process & wait for it to finish
-                        //using (Process proc = Process.Start(start))
-                        //{
-                        //    proc.WaitForExit();
+                        if (p == null) // could be that it just does not start 2+ instances
+                        {
+                            // throw new Exception("Program run error: Program did not run");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        lnkio.WriteProgramLog(e.Message);
+                        //throw new Exception("Program run error: Program start failed");
+                    }
 
-                        //    // Retrieve the app's exit code
-                        //    exitCode = proc.ExitCode;
-                        //}
+                    //int exitCode;
+                    //// Run the external process & wait for it to finish
+                    //using (Process proc = Process.Start(start))
+                    //{
+                    //    proc.WaitForExit();
+
+                    //    // Retrieve the app's exit code
+                    //    exitCode = proc.ExitCode;
+                    //}
+                }
+                else
+                {
+                    // bad
+                    if (scLink != null)
+                    {
+                        if (scLink.Name != null)
+                            throw new Exception("Program run error: Internal data lookup error. The icon has no data or internal name: '" + scLink.Name + "' is corrupt");
+                        else
+                            throw new Exception("Program run error: Internal data lookup error. The icon internal name is missing");
                     }
                     else
-                    {
-                        // bad
-                        if (scLink != null)
-                        {
-                            if (scLink.Name != null)
-                                throw new Exception("Program run error: Internal data lookup error. The icon has no data or internal name: '" + scLink.Name + "' is corrupt");
-                            else
-                                throw new Exception("Program run error: Internal data lookup error. The icon internal name is missing");
-                        }
-                        else
-                            throw new Exception("Program run error: Internal shortcut data lookup error. The data is not found");
-                    }
+                        throw new Exception("Program run error: Internal shortcut data lookup error. The data is not found");
                 }
-                catch
-                {
-                    throw new Exception("Program run error: Unknown internal error. Program data lookup failed.");
-                }
-
-                //mouseEvent.Handled = true;
-
+            }
+            catch (Exception e)
+            {
+                lnkio.WriteProgramLog(e.Message);
+                //throw new Exception("Program run error: Unknown internal error. Program data lookup failed.");
+            }
+            //mouseEvent.Handled = true;
             return;
         }
-
 
         public ObservableCollection<Shortcut> ShortcutItems
         {
@@ -793,21 +828,51 @@ namespace KickOff
         /// <param name="FileList"></param>
         private void CreateShortCuts(string[] FileList)
         {
-            foreach (string FilePath in FileList)
+            foreach (string shortcutini in FileList)
             {
-                if (null == FilePath || string.Empty == FilePath)
+                if (null == shortcutini || string.Empty == shortcutini)
                     continue;
 
-                LnkData lnk = lnkio.ResolveShortcut(FilePath);
+                /// The shortcut file names may be a path to a link file or target file/directory
+                /// or it may be that and a user selected icon source and index separated using 
+                /// a split character
+                string iconFilePath=string.Empty;
+                int iconIndex = USE_MAIN_ICON;
+                string FilePath = string.Empty;
+                try {
+                    string[] s = shortcutini.Split(INI_SPLIT_CHAR);
+                    FilePath = s[0];
+                    if (s.Length == 3)
+                    {
+                        iconFilePath = s[1];
+                        iconIndex = int.Parse(s[2]);
+                    }
+                    else if (s.Length != 1)
+                    {
+                        WriteProgramLog("INI File read error. Saved shortcut ini set should be 1 or 3 items and is " + s.Length.ToString());
+                    }
+                    else
+                        iconFilePath = s[0]; // set icon path to the link file
+                }
+                catch (Exception e)
+                {
+                    WriteProgramLog(e.Message);
+                }
+                LnkData lnk = lnkio.ResolveShortcut(FilePath, iconFilePath, iconIndex);
                 if (null != lnk)
                 {
                     if( null == lnk || lnk.ShortcutAddress == string.Empty)
                     {
-                        throw new Exception("Shortcut link does not have a path");
+                        WriteProgramLog("Shortcut link does not have a path:" + FilePath);
+                        //throw new Exception("Shortcut link does not have a path");
                     }
 
                     Shortcut sc = new Shortcut
                     {
+                        iconFilePath = iconFilePath,
+                        iconIndex = iconIndex,
+                        //iconFilePath = string.Empty,
+                        //iconIndex = USE_MAIN_ICON,
                         lnkData = lnk,
                         lnkPopup = new Popup(),
                         IsRendered = false
@@ -828,6 +893,9 @@ namespace KickOff
 
     public class Shortcut : System.Windows.Controls.Image
     {
+        public string iconFilePath {get; set;}
+        public int iconIndex { get; set; }
+
         public Shortcut()
         {
             Margin = new Thickness(4); // all same// (2, 2, 2, 2); //left,top,right,bottom

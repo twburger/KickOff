@@ -5,11 +5,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:KickOff"
         mc:Ignorable="d"
-        Title="IconSelect" Height="300" Width="300">
-    <Grid Margin="-208,-61,-0.4,0.4">
-        <ScrollViewer HorizontalAlignment="Left" Height="100" Margin="98,133,0,0" VerticalAlignment="Top" Width="100">
-            <WrapPanel Name="MainPanel" HorizontalAlignment="Left" Height="100" Margin="364,233,0,-2" VerticalAlignment="Top" Width="100"/>
+        Title="Icon Select" Height="300" Width="300">
+    <ScrollViewer x:Name="scrollMainPanel" HorizontalScrollBarVisibility="Auto"
+                VerticalScrollBarVisibility="Disabled">
+        <WrapPanel x:Name="MainPanel" Width="{Binding ElementName=scrollMainPanel, Path=ViewportWidth}" Orientation="Vertical" HorizontalAlignment="Stretch" Height="Auto" VerticalAlignment="Stretch" />
         </ScrollViewer>
-
-    </Grid>
 </Window>
