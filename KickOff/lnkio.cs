@@ -305,7 +305,7 @@ namespace KickOff
             }
             catch (Exception e)
             {
-                WriteProgramLog(e.Message);
+                WriteProgramLog("Could not read file: " + lnkPath + "\n\t Reason: " + e.Message);
                 //throw new Exception(e.Message);
             }
             return link;

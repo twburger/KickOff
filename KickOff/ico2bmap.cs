@@ -146,7 +146,7 @@ namespace KickOff
                 // get a 'built in' icon for a folder
                 try
                 {
-                    ibm = ExtractIconBitMapFromFile("shell32.dll", 4, true);
+                    ibm = ExtractIconBitMapFromFile(Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\shell32.dll"), 4, true);
                 }
                 catch
                 {
@@ -164,9 +164,9 @@ namespace KickOff
 
         /// Sources of icons include: 
         /// SystemIcons.Hand
-        /// %SystemRoot%\system32\shell32.dll); 
+        /// Environment.ExpandEnvironmentVariables(%SystemRoot%\system32\shell32.dll)); 
         /// C:\Windows\System32\imageres.dll 
-        /// % SystemRoot %\system32\DDORes.dll
+        /// %SystemRoot%\system32\DDORes.dll
 
         public static IconBitMap ExtractICO(string file, int idxIcon=0)
         {

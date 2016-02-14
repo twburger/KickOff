@@ -180,9 +180,9 @@ namespace KickOff
             Shortcut sc = cm.PlacementTarget as Shortcut;
             string[] iconsourcefiles = new string[] {
                 ( sc.lnkData.bIsReference || sc.lnkData.bTargetIsDirectory) ? string.Empty : sc.lnkData.OriginalTargetPath,
-                "shell32.dll",
-                "imageres.dll",
-                "DDORes.dll"
+                Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\shell32.dll"),
+                Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\imageres.dll"),
+                Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\DDORes.dll")
             };
 
             IconSelect iconSelector = new IconSelect(iconsourcefiles) {Owner = this};
@@ -283,7 +283,7 @@ namespace KickOff
             // get the program state
             SetProgramState();
 
-            //Add a handler to process custom main context items added
+            //Add a handler to process custom main context menu items added
             IntPtr windowhandle = new WindowInteropHelper(this).Handle;
             HwndSource hwndSource = HwndSource.FromHwnd(windowhandle);
             hwndSource.AddHook(new HwndSourceHook(ProcessCustomMainContext));
@@ -466,7 +466,7 @@ namespace KickOff
                     {
                         From = 1.0,
                         To = 0.1,
-                        Duration = new Duration(TimeSpan.FromSeconds(0.75)),
+                        Duration = new Duration(TimeSpan.FromSeconds(0.35)),
                         AutoReverse = true
                         //RepeatBehavior = RepeatBehavior.Forever
                     };
@@ -511,7 +511,7 @@ namespace KickOff
                     sc.lnkPopup.Child = popupText;
                     sc.lnkPopup.PlacementTarget = sc;
                     sc.lnkPopup.IsOpen = false;
-                    sc.lnkPopup.Placement = PlacementMode.MousePoint;//.Center;
+                    sc.lnkPopup.Placement = PlacementMode.Bottom; //.MousePoint;//.Center;
 
                     // add handlers for popup
                     sc.MouseEnter += SCI_MouseEnter; // turn on popup
@@ -631,7 +631,7 @@ namespace KickOff
                 Shortcut sc = sender as Shortcut;
                 if( MainPanel.Children.Contains(sc) )
                 {
-                    // Can just pass its inex or the whole object
+                    // Can just pass its index or the whole object
                     int sourceidx = MainPanel.Children.IndexOf(sc);
                     //DataObject dragData = new DataObject(SC_DROP_FORMAT, sc);
                     DataObject dragData = new DataObject(SC_DROP_FORMAT, sourceidx);
@@ -737,7 +737,7 @@ namespace KickOff
                                 start.Arguments = scLink.lnkData.Arguments;
                                 // Enter the executable to run, including the complete path
                                 start.FileName = scLink.lnkData.TargetPath;
-                                /// For cases where the starting working directory is like this:  %HOMEDRIVE%%HOMEPATH%
+                                /// For cases where the starting working directory is like this:  Environment.ExpandEnvironmentVariables("%HOMEDRIVE%%HOMEPATH%");
                                 start.WorkingDirectory = Environment.ExpandEnvironmentVariables(scLink.lnkData.WorkingDirectory);
                                 start.WorkingDirectory = System.IO.Path.GetFullPath(scLink.lnkData.WorkingDirectory);
                             }
@@ -758,7 +758,7 @@ namespace KickOff
 
                                 /// if the process fails it seems that the current working directory may be to blame
                                 /// For example: The GitBash shortcut uses as command args: "C:\Program Files\Git\git-bash.exe" --cd-to-home
-                                /// and the starting working directory of %HOMEDRIVE%%HOMEPATH%
+                                /// and the starting working directory of %HOMEDRIVE%%HOMEPATH% (use Environment.ExpandEnvironmentVariables)
                                 start.WorkingDirectory = string.Empty;//@"D:\Users\user";
                                 try
                                 {
@@ -839,25 +839,69 @@ namespace KickOff
                 string iconFilePath=string.Empty;
                 int iconIndex = USE_MAIN_ICON;
                 string FilePath = string.Empty;
+                string[] sc_args = null;
                 try {
-                    string[] s = shortcutini.Split(INI_SPLIT_CHAR);
-                    FilePath = s[0];
-                    if (s.Length == 3)
+                    sc_args = shortcutini.Split(INI_SPLIT_CHAR);
+                    FilePath = sc_args[0];
+                    if (sc_args.Length == 3)
                     {
-                        iconFilePath = s[1];
-                        iconIndex = int.Parse(s[2]);
+                        iconFilePath = sc_args[1];
+                        iconIndex = int.Parse(sc_args[2]);
                     }
-                    else if (s.Length != 1)
+                    else if (sc_args.Length != 1)
                     {
-                        WriteProgramLog("INI File read error. Saved shortcut ini set should be 1 or 3 items and is " + s.Length.ToString());
+                        WriteProgramLog("Kickoff.ini read error. Shortcut dataset should be 1 or 3 items and is " + sc_args.Length.ToString());
                     }
                     else
-                        iconFilePath = s[0]; // set icon path to the link file
+                        iconFilePath = sc_args[0]; // set icon path to the link file
                 }
                 catch (Exception e)
                 {
-                    WriteProgramLog(e.Message);
+                    WriteProgramLog(FilePath + " Error: " + e.Message);
+                    // screwed up so move on
+                    continue;
                 }
+
+                // expand the paths
+                FilePath = Environment.ExpandEnvironmentVariables(FilePath);
+                iconFilePath = Environment.ExpandEnvironmentVariables(iconFilePath);
+
+                /// Test here that FilePath, iconFilePath, iconIndex have sane values and point to something
+                /// 
+                if (!System.IO.File.Exists(FilePath) )
+                {
+                    if (!System.IO.Directory.Exists(FilePath))
+                    {
+                        //System.IO.File.GetAttributes(FilePath).HasFlag(FileAttributes.Directory);
+                        WriteProgramLog(FilePath +
+                            ": Windows thinks this is not a file or directory path.\n\tCould be a permissions/security issue."
+                            );
+                        // screwed up move on
+                        continue;
+                    }
+                }
+
+                // path to icons could be a direstory if the target is a directory
+                if (!System.IO.File.Exists(iconFilePath))
+                {
+                    if (!System.IO.Directory.Exists(iconFilePath))
+                    {
+                        WriteProgramLog(iconFilePath +
+                            ": Windows thinks this is not a file or directory path.\n\tCould be an invalid path or permissions/security issue."
+                            );
+                        // reassign the icon source
+                        iconFilePath = FilePath;
+                    }
+                }
+
+                if (iconIndex == 0)
+                    iconIndex = USE_MAIN_ICON;
+                else if (iconIndex < USE_MAIN_ICON || iconIndex > ico2bmap.MAX_ICONS)
+                {
+                    WriteProgramLog("Icon index: " + sc_args[2] + " is an invalid value");
+                    iconIndex = USE_MAIN_ICON;
+                }
+
                 LnkData lnk = lnkio.ResolveShortcut(FilePath, iconFilePath, iconIndex);
                 if (null != lnk)
                 {
