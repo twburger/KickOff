@@ -9,6 +9,7 @@ namespace KickOff
 {
     public static class lnkio
     {
+        /*
         public static bool CreateShortcut(LnkData lnkData, string lnkFileName, string pathtoLnk)
         {
             bool bLnkCreated = false;
@@ -55,14 +56,14 @@ namespace KickOff
 
             return (bLnkCreated);
         }
-
+        */
         public static LnkData ResolveShortcut(string lnkPath, string iconFilePath, int iconIndex)
         {
             return (ResolveShortcut(System.IO.Path.GetFileName(System.IO.Path.GetFullPath(lnkPath)),
                 System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(lnkPath)), iconFilePath, iconIndex));
         }
 
-        public static LnkData ResolveShortcut(string lnkFileName, string pathtoLnk, string iconFilePath, int iconIndex)
+        public static LnkData ResolveShortcut(string lnkFileName, string pathtoLnk, string _iconFilePath, int _iconIndex)
         {
             WshShell shell = new WshShell();
             LnkData lnkData = null;
@@ -94,19 +95,22 @@ namespace KickOff
                             Description = "Folder",
                             FullName = System.IO.Path.GetDirectoryName(shortcutAddress),
                             Hotkey = string.Empty,
-                            IconLocation = string.Empty,
+
                             TargetPath = shortcutAddress,
                             OriginalTargetPath = shortcutAddress,
-                            WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
-                            WorkingDirectory = string.Empty,
+                            //WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
+                            //WorkingDirectory = string.Empty,
 
                             bIsReference = false,
                             bTargetIsDirectory = true,
-                            icoBitmap = ico2bmap.GetBitmapFromFileIcon(iconFilePath, iconIndex),
-                            ShortcutAddress = shortcutAddress
+                            ShortcutAddress = shortcutAddress,
+
+                            IconSourceFilePath = _iconFilePath,
+                            IconIndex = _iconIndex,
+                            icoBitmap = ico2bmap.ExtractICO(_iconFilePath, _iconIndex)
                         };
                     }
-                    else // if this is a reference
+                    else // if this is a reference or a link or a file or directory
                     {
                         bool bIsRef = (".appref-ms" == System.IO.Path.GetExtension(shortcutAddress).ToLower());
                         // if this is a reference use the reference as the target
@@ -118,16 +122,19 @@ namespace KickOff
                                 Description = System.IO.Path.GetFileNameWithoutExtension(shortcutAddress),
                                 FullName = System.IO.Path.GetFileName(shortcutAddress),
                                 Hotkey = string.Empty,
-                                IconLocation = string.Empty,
                                 TargetPath = shortcutAddress,
                                 OriginalTargetPath = shortcutAddress,
-                                WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
-                                WorkingDirectory = string.Empty,
+                                //WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
+                                //WorkingDirectory = string.Empty,
 
                                 bIsReference = bIsRef,
                                 bTargetIsDirectory = false,
-                                icoBitmap = ico2bmap.GetBitmapFromFileIcon(iconFilePath, iconIndex),
-                                ShortcutAddress = shortcutAddress
+                                ShortcutAddress = shortcutAddress,
+
+                                //IconSourceFilePath = string.Empty,
+                                IconSourceFilePath = _iconFilePath,
+                                IconIndex = _iconIndex,
+                                icoBitmap = ico2bmap.ExtractICO(_iconFilePath, _iconIndex)
                             };
                         }
                         else if (".lnk" == System.IO.Path.GetExtension(shortcutAddress).ToLower())
@@ -150,42 +157,20 @@ namespace KickOff
                                 Description = System.IO.Path.GetFileNameWithoutExtension(shortcutAddress) + " Link",
                                 FullName = System.IO.Path.GetFileName(shortcutAddress),
                                 Hotkey = string.Empty,
-                                IconLocation = string.Empty,
                                 TargetPath = shortcutAddress,
                                 OriginalTargetPath = ReadLnk(shortcutAddress),
-                                WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
-                                WorkingDirectory = string.Empty,
+                                //WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
+                                //WorkingDirectory = string.Empty,
 
                                 bIsReference = false,
                                 bTargetIsDirectory = false,
-                                icoBitmap = ico2bmap.GetBitmapFromFileIcon(iconFilePath, iconIndex),
                                 ShortcutAddress = shortcutAddress,
-                                bTargetIsFile = true
+                                bTargetIsFile = true,
+
+                                IconSourceFilePath = _iconFilePath,
+                                IconIndex = _iconIndex,
+                                icoBitmap = ico2bmap.ExtractICO(_iconFilePath, _iconIndex)
                             };
-                            /*
-                                                            return (lnkData);
-                                                        }
-
-                                                        FileAttributes fa = System.IO.File.GetAttributes(shortcut.TargetPath);
-                                                        bTisD = (fa.HasFlag(FileAttributes.Directory));
-                                                        lnkData = new LnkData
-                                                        {
-                                                            Arguments = shortcut.Arguments,
-                                                            Description = shortcut.Description, // A Comment
-                                                            FullName = shortcut.FullName,  // shortcut FullName is read only
-                                                            Hotkey = shortcut.Hotkey, //"Ctrl+Shift+N";
-                                                            IconLocation = shortcut.IconLocation,
-                                                            //RelativePath = shortcut.RelativePath, // The link relative path is set only
-                                                            TargetPath = shortcut.TargetPath,
-                                                            WindowStyle = shortcut.WindowStyle, // 1 for default window, 3 for maximize, 7 for minimize
-                                                            WorkingDirectory = shortcut.WorkingDirectory,
-
-                                                            bIsReference = bIsRef,
-                                                            bTargetIsDirectory = bTisD,
-                                                            Bitmap = ico2bmap.GetBitmapFromFileIcon(bTisD ? shortcutAddress : shortcut.TargetPath),
-                                                            ShortcutAddress = shortcutAddress
-                                                        };
-                            */
                         }
                         else // this is not a link it's a file - get type and set target to assigned app
                         {
@@ -197,17 +182,19 @@ namespace KickOff
                                 Description = ext.ToUpper() + " File",
                                 FullName = System.IO.Path.GetFileName(shortcutAddress),
                                 Hotkey = string.Empty,
-                                IconLocation = string.Empty,
                                 TargetPath = shortcutAddress,
                                 OriginalTargetPath = shortcutAddress,
-                                WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
-                                WorkingDirectory = string.Empty,
+                                //WindowStyle = 1, // 1 for default window, 3 for maximize, 7 for minimize should remap to 1 = ProcessWindowStyle.Normal
+                                //WorkingDirectory = string.Empty,
 
                                 bIsReference = false,
                                 bTargetIsDirectory = false,
-                                icoBitmap = ico2bmap.GetBitmapFromFileIcon(iconFilePath, iconIndex),
                                 ShortcutAddress = shortcutAddress,
-                                bTargetIsFile = true
+                                bTargetIsFile = true,
+
+                                IconSourceFilePath = _iconFilePath,
+                                IconIndex = _iconIndex,
+                                icoBitmap = ico2bmap.ExtractICO(_iconFilePath, _iconIndex)
                             };
 
                         }
@@ -315,22 +302,23 @@ namespace KickOff
 
     public class LnkData
     {
-        public LnkData() { }
+        //public LnkData() { }
         public string Arguments { get; set; }
         public string Description { get; set; }       // "New shortcut for a Notepad"
         public string FullName { get; set; }           // FullName is read only in the link
         public string Hotkey { get; set; }             //"Ctrl+Shift+N";
-        public string IconLocation { get; set; }
-        public string RelativePath { get; set; }        // write only in link
         public string TargetPath { get; set; }         //Environment.GetFolderPath(Environment.SpecialFolder.System) + @"\notepad.exe";
         public string OriginalTargetPath { get; set; }  // used for getting the original target icon
-        public int WindowStyle { get; set; }           // 1 for default window, 3 for maximize, 7 for minimize
-        public string WorkingDirectory { get; set; }
         public bool bIsReference { get; set; }
         public bool bTargetIsDirectory { get; set; }
         public IconBitMap icoBitmap { get; set; }
         public bool bTargetIsFile { get; set; }
         public string ShortcutAddress { get; set; }
+        public string IconSourceFilePath { get; set; }
+        public int IconIndex { get; set; }
+        //public int WindowStyle { get; set; }           // 1 for default window, 3 for maximize, 7 for minimize
+        //public string WorkingDirectory { get; set; }
+        //public string RelativePath { get; set; }        // write only in link
     }
 
 }  // namespace

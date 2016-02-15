@@ -14,11 +14,11 @@ namespace KickOff
     public partial class IconSelect : Window
     {
         public int idxFile = -1, idxIcon = -1;
-        public IconSelect(string[] iconSourceFilePath)
+        public IconSelect(string[] iconSourceFilePaths)
         {
             InitializeComponent();
 
-            WindowStyle = WindowStyle.SingleBorderWindow;
+            WindowStyle = WindowStyle.ToolWindow; //.SingleBorderWindow;
             ResizeMode = ResizeMode.CanResize;
             SizeToContent = SizeToContent.Manual; //.WidthAndHeight;
             ////Height = 400;            Width = 150;
@@ -34,68 +34,76 @@ namespace KickOff
             try
             {
                 
-                for (int fileCount = 0; fileCount < iconSourceFilePath.Length; fileCount++)
+                for (int fileCount = 0; fileCount < iconSourceFilePaths.Length; fileCount++)
                 {
-                    if (string.Empty != iconSourceFilePath[fileCount]
-                        //&& System.IO.File.Exists(iconSourceFilePath[fileCount]) &&
-                        //!File.GetAttributes(iconSourceFilePath[fileCount]).HasFlag(FileAttributes.Directory)
-                        )
+                    if (string.Empty != iconSourceFilePaths[fileCount])
                     {
-                        int imgCount = 0;
-
-                        ibm = ico2bmap.ExtractAllIconBitMapFromFile(iconSourceFilePath[fileCount]);
-                        
-                        foreach (IconBitMap ico in ibm)
+                        if (
+                        (System.IO.File.Exists(iconSourceFilePaths[fileCount]) ||
+                        System.IO.Directory.Exists(iconSourceFilePaths[fileCount]))
+                        )
                         {
-                            IconImage img = new IconImage()
+                            int imgCount = 0;
+                            if (null != ibm) ibm.Clear();
+                            ibm = ico2bmap.ExtractAllIconBitMapFromFile(iconSourceFilePaths[fileCount]);
+                            foreach (IconBitMap ico in ibm)
                             {
-                                idxFile = fileCount,
-                                idxIcon = imgCount,
-                                Name = "_img_" + imgCount.ToString() + "_" + fileCount.ToString(),
-                                Source = ico.bitmapsource,
-                                Width = ico.BitmapSize,
-                                Margin = new Thickness(4)
-                            };
-                            img.MouseDown += Img_MouseDown;
-
-                            DoubleAnimation mo_animation = new DoubleAnimation
-                            {
-                                From = 1.0,
-                                To = 0.1,
-                                Duration = new Duration(TimeSpan.FromSeconds(0.25)),
-                                AutoReverse = true
-                            };
-                            var mo_storyboard = new Storyboard
-                            {
-                                RepeatBehavior = RepeatBehavior.Forever
-                            };
-                            Storyboard.SetTargetProperty(mo_animation, new PropertyPath("(Opacity)"));
-                            mo_storyboard.Children.Add(mo_animation);
-                            BeginStoryboard enterBeginStoryboard = new BeginStoryboard
-                            {
-                                Name = img.Name + "_esb",
-                                Storyboard = mo_storyboard
-                            };
-                            // Set the name of the storyboard so it can be found
-                            NameScope.GetNameScope(this).RegisterName(enterBeginStoryboard.Name, enterBeginStoryboard);
-                            // create event callbacks
-                            var moe = new EventTrigger(MouseEnterEvent);
-                            moe.Actions.Add(enterBeginStoryboard);
-                            img.Triggers.Add(moe);
-                            var mle = new EventTrigger(MouseLeaveEvent);
-                            mle.Actions.Add(
-                                new StopStoryboard
+                                IconImage img = new IconImage()
                                 {
-                                    BeginStoryboardName = enterBeginStoryboard.Name
-                                });
-                            img.Triggers.Add(mle);
+                                    idxFile = fileCount,
+                                    idxIcon = imgCount,
+                                    Name = "_img_" + imgCount.ToString() + "_" + fileCount.ToString(),
+                                    Source = ico.bitmapsource,
+                                    Width = ico.BitmapSize,
+                                    Margin = new Thickness(4)
+                                };
+                                img.MouseDown += Img_MouseDown;
 
-                            img.MouseEnter += Img_MouseEnter;  //+= (s, e) => Mouse.OverrideCursor = Cursors.Hand;
-                            img.MouseLeave += Img_MouseLeave;
+                                DoubleAnimation mo_animation = new DoubleAnimation
+                                {
+                                    From = 1.0,
+                                    To = 0.1,
+                                    Duration = new Duration(TimeSpan.FromSeconds(0.25)),
+                                    AutoReverse = true
+                                };
+                                var mo_storyboard = new Storyboard
+                                {
+                                    RepeatBehavior = RepeatBehavior.Forever
+                                };
+                                Storyboard.SetTargetProperty(mo_animation, new PropertyPath("(Opacity)"));
+                                mo_storyboard.Children.Add(mo_animation);
+                                BeginStoryboard enterBeginStoryboard = new BeginStoryboard
+                                {
+                                    Name = img.Name + "_esb",
+                                    Storyboard = mo_storyboard
+                                };
+                                // Set the name of the storyboard so it can be found
+                                NameScope.GetNameScope(this).RegisterName(enterBeginStoryboard.Name, enterBeginStoryboard);
+                                // create event callbacks
+                                var moe = new EventTrigger(MouseEnterEvent);
+                                moe.Actions.Add(enterBeginStoryboard);
+                                img.Triggers.Add(moe);
+                                var mle = new EventTrigger(MouseLeaveEvent);
+                                mle.Actions.Add(
+                                    new StopStoryboard
+                                    {
+                                        BeginStoryboardName = enterBeginStoryboard.Name
+                                    });
+                                img.Triggers.Add(mle);
 
-                            // Add it and count it to make sure each has a unique name
-                            MainPanel.Children.Add(img); imgCount++;
+                                img.MouseEnter += Img_MouseEnter;  //+= (s, e) => Mouse.OverrideCursor = Cursors.Hand;
+                                img.MouseLeave += Img_MouseLeave;
+
+                                // Add it and count it to make sure each has a unique name
+                                MainPanel.Children.Add(img);
+
+                                imgCount++;
+                            }
                         }
+                    }
+                    else
+                    {
+                        lnkio.WriteProgramLog("Cannot find or read icon source file: " + (string.Empty == iconSourceFilePaths[fileCount] ? "File name is missing" : iconSourceFilePaths[fileCount]));
                     }
                 }
             }

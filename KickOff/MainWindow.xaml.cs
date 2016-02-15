@@ -179,7 +179,9 @@ namespace KickOff
             ContextMenu cm = (ContextMenu)mi.Parent;
             Shortcut sc = cm.PlacementTarget as Shortcut;
             string[] iconsourcefiles = new string[] {
-                ( sc.lnkData.bIsReference || sc.lnkData.bTargetIsDirectory) ? string.Empty : sc.lnkData.OriginalTargetPath,
+                // provide a path to the original icon
+                //( sc.lnkData.bIsReference || sc.lnkData.bTargetIsDirectory) ? sc.lnkData.ShortcutAddress : sc.lnkData.OriginalTargetPath,
+                sc.lnkData.OriginalTargetPath,
                 Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\shell32.dll"),
                 Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\imageres.dll"),
                 Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\DDORes.dll")
@@ -190,12 +192,16 @@ namespace KickOff
             // if the user selected something so the value is not false or null for retruned bool? 
             if (true == iconSelector.ShowDialog())
             {
-                var x = iconSelector.DialogResult;
-                sc.iconIndex = iconSelector.idxIcon;
-                sc.iconFilePath = iconsourcefiles[iconSelector.idxFile];
+                //var x = iconSelector.DialogResult;
+                sc.lnkData.IconIndex = iconSelector.idxIcon;
+                sc.lnkData.IconSourceFilePath = iconsourcefiles[iconSelector.idxFile];
 
                 // set the new icon
-                IconBitMap ibm = ico2bmap.ExtractICO(sc.iconFilePath, sc.iconIndex);
+                IconBitMap ibm = null;
+                if (sc.lnkData.IconIndex != USE_MAIN_ICON)
+                    ibm = ico2bmap.ExtractICO(sc.lnkData.IconSourceFilePath, sc.lnkData.IconIndex);
+                if( null == ibm)
+                    ibm = ico2bmap.ExtractIconBitMap(System.Drawing.Icon.ExtractAssociatedIcon(sc.lnkData.IconSourceFilePath));
                 sc.Source = ibm.bitmapsource;
                 sc.Width = ibm.BitmapSize;
             }
@@ -325,8 +331,8 @@ namespace KickOff
             {
                 Shortcut s = (Shortcut)scs.Current;
                 ProgramState += s.lnkData.ShortcutAddress + INI_SPLIT_CHAR;
-                ProgramState += s.iconFilePath + INI_SPLIT_CHAR;
-                ProgramState += s.iconIndex.ToString() + "\n";
+                ProgramState += s.lnkData.IconSourceFilePath + INI_SPLIT_CHAR;
+                ProgramState += s.lnkData.IconIndex.ToString() + "\n";
             }
 
             lnkio.WriteProgramState(ProgramState);
@@ -738,8 +744,8 @@ namespace KickOff
                                 // Enter the executable to run, including the complete path
                                 start.FileName = scLink.lnkData.TargetPath;
                                 /// For cases where the starting working directory is like this:  Environment.ExpandEnvironmentVariables("%HOMEDRIVE%%HOMEPATH%");
-                                start.WorkingDirectory = Environment.ExpandEnvironmentVariables(scLink.lnkData.WorkingDirectory);
-                                start.WorkingDirectory = System.IO.Path.GetFullPath(scLink.lnkData.WorkingDirectory);
+                                start.WorkingDirectory = string.Empty; //Environment.ExpandEnvironmentVariables(scLink.lnkData.WorkingDirectory);
+                                //start.WorkingDirectory = System.IO.Path.GetFullPath(scLink.lnkData.WorkingDirectory);
                             }
                             // Do you want to show a console window?
                             start.WindowStyle = ProcessWindowStyle.Normal;
@@ -842,10 +848,10 @@ namespace KickOff
                 string[] sc_args = null;
                 try {
                     sc_args = shortcutini.Split(INI_SPLIT_CHAR);
-                    FilePath = sc_args[0];
+                    FilePath = Environment.ExpandEnvironmentVariables(sc_args[0]);
                     if (sc_args.Length == 3)
                     {
-                        iconFilePath = sc_args[1];
+                        iconFilePath = Environment.ExpandEnvironmentVariables(sc_args[1]);
                         iconIndex = int.Parse(sc_args[2]);
                     }
                     else if (sc_args.Length != 1)
@@ -863,8 +869,8 @@ namespace KickOff
                 }
 
                 // expand the paths
-                FilePath = Environment.ExpandEnvironmentVariables(FilePath);
-                iconFilePath = Environment.ExpandEnvironmentVariables(iconFilePath);
+                //FilePath = Environment.ExpandEnvironmentVariables(FilePath);
+                //iconFilePath = Environment.ExpandEnvironmentVariables(iconFilePath);
 
                 /// Test here that FilePath, iconFilePath, iconIndex have sane values and point to something
                 /// 
@@ -894,11 +900,11 @@ namespace KickOff
                     }
                 }
 
-                if (iconIndex == 0)
-                    iconIndex = USE_MAIN_ICON;
-                else if (iconIndex < USE_MAIN_ICON || iconIndex > ico2bmap.MAX_ICONS)
+                //if (iconIndex == 0) iconIndex = USE_MAIN_ICON;
+                //else 
+                if (iconIndex < USE_MAIN_ICON || iconIndex > ico2bmap.MAX_ICONS)
                 {
-                    WriteProgramLog("Icon index: " + sc_args[2] + " is an invalid value");
+                    WriteProgramLog("Icon index: " + sc_args[2].ToString() + " is an invalid value");
                     iconIndex = USE_MAIN_ICON;
                 }
 
@@ -913,10 +919,6 @@ namespace KickOff
 
                     Shortcut sc = new Shortcut
                     {
-                        iconFilePath = iconFilePath,
-                        iconIndex = iconIndex,
-                        //iconFilePath = string.Empty,
-                        //iconIndex = USE_MAIN_ICON,
                         lnkData = lnk,
                         lnkPopup = new Popup(),
                         IsRendered = false
@@ -937,8 +939,8 @@ namespace KickOff
 
     public class Shortcut : System.Windows.Controls.Image
     {
-        public string iconFilePath {get; set;}
-        public int iconIndex { get; set; }
+        //public string iconFilePath {get; set;}
+        //public int iconIndex { get; set; }
 
         public Shortcut()
         {
