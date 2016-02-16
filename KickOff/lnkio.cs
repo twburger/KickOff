@@ -148,10 +148,16 @@ namespace KickOff
                             //string s = ReadLnk(shortcutAddress);
                             //throw new Exception("Shortcut does not have a standard target");
 
+                            // Make sure icon source actually exists. If not use the LNK file for icon
+                            if (!(System.IO.File.Exists(_iconFilePath) ||System.IO.Directory.Exists(_iconFilePath)))
+                            {
+                                _iconFilePath = shortcutAddress;
+                                _iconIndex = ico2bmap.USE_MAIN_ICON;
+                            }
                             // Just run the lnk file
                             // do not need to have knowledge of what to run just make file the target
                             // but do get the taget file so the original target icon can be selected by the user
-                            lnkData = new LnkData
+                                lnkData = new LnkData
                             {
                                 Arguments = string.Empty,
                                 Description = System.IO.Path.GetFileNameWithoutExtension(shortcutAddress) + " Link",
@@ -249,6 +255,10 @@ namespace KickOff
                 var itm = dir.Items().Item(System.IO.Path.GetFileName(lnkPath));
                 var lnk = (Shell32.ShellLinkObject)itm.GetLink;
                 link = lnk.Target.Path;
+                //link = lnk.Path;
+
+                //var x = (Shell32.FolderItem)itm.Application;
+                //link = x.Application;
                 /*
                 FileStream fileStream = System.IO.File.Open(lnkPath, FileMode.Open, FileAccess.Read);
                 using (System.IO.BinaryReader fileReader = new BinaryReader(fileStream))

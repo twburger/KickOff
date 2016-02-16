@@ -98,10 +98,14 @@ namespace KickOff
         private ContextMenu shortcutCtxMenu = new ContextMenu();
         private static char INI_SPLIT_CHAR = '^';
         public static int USE_MAIN_ICON = ico2bmap.USE_MAIN_ICON;
+        private EventTrigger moe = null;
+        private EventTrigger mle = null;
 
         public MainWindow()
         {
             InitializeComponent();
+
+            Name = "KickoffMainWindow";
 
             // Windows logoff or shutdown
             Application.Current.SessionEnding += Current_SessionEnding;
@@ -164,6 +168,43 @@ namespace KickOff
             miSC_Delete.Click += MiSC_Delete_Click;
             shortcutCtxMenu.Items.Add(miSC_Delete);
 
+            // Create animation storyboard
+            DoubleAnimation mo_animation = new DoubleAnimation
+            {
+                From = 1.0,
+                To = 0.1,
+                Duration = new Duration(TimeSpan.FromSeconds(0.35)),
+                AutoReverse = true
+                //RepeatBehavior = RepeatBehavior.Forever
+            };
+
+            var mo_storyboard = new Storyboard
+            {
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+
+            Storyboard.SetTargetProperty(mo_animation, new PropertyPath("(Opacity)"));
+
+            mo_storyboard.Children.Add(mo_animation);
+
+            BeginStoryboard enterBeginStoryboard = new BeginStoryboard
+            {
+                Name = this.Name + "_esb", //sc.Name + "_esb",
+                Storyboard = mo_storyboard
+            };
+
+            // Set the name of the storyboard so it can be found
+            NameScope.GetNameScope(this).RegisterName(enterBeginStoryboard.Name, enterBeginStoryboard);
+
+            moe = new EventTrigger(MouseEnterEvent);
+            moe.Actions.Add(enterBeginStoryboard);
+            mle = new EventTrigger(MouseLeaveEvent);
+            mle.Actions.Add(
+                new StopStoryboard
+                {
+                    BeginStoryboardName = enterBeginStoryboard.Name
+                });
+
             // create a panel to draw in
             Content = MainPanel;
 
@@ -180,30 +221,33 @@ namespace KickOff
             Shortcut sc = cm.PlacementTarget as Shortcut;
             string[] iconsourcefiles = new string[] {
                 // provide a path to the original icon
-                //( sc.lnkData.bIsReference || sc.lnkData.bTargetIsDirectory) ? sc.lnkData.ShortcutAddress : sc.lnkData.OriginalTargetPath,
+                sc.lnkData.ShortcutAddress,
                 sc.lnkData.OriginalTargetPath,
                 Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\shell32.dll"),
                 Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\imageres.dll"),
                 Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\DDORes.dll")
             };
 
-            IconSelect iconSelector = new IconSelect(iconsourcefiles) {Owner = this};
-            
-            // if the user selected something so the value is not false or null for retruned bool? 
-            if (true == iconSelector.ShowDialog())
+            using (IconSelect iconSelector = new IconSelect() { Owner = this })
             {
-                //var x = iconSelector.DialogResult;
-                sc.lnkData.IconIndex = iconSelector.idxIcon;
-                sc.lnkData.IconSourceFilePath = iconsourcefiles[iconSelector.idxFile];
+                iconSelector.IconSelectSetIconSourcePaths(iconsourcefiles);
 
-                // set the new icon
-                IconBitMap ibm = null;
-                if (sc.lnkData.IconIndex != USE_MAIN_ICON)
-                    ibm = ico2bmap.ExtractICO(sc.lnkData.IconSourceFilePath, sc.lnkData.IconIndex);
-                if( null == ibm)
-                    ibm = ico2bmap.ExtractIconBitMap(System.Drawing.Icon.ExtractAssociatedIcon(sc.lnkData.IconSourceFilePath));
-                sc.Source = ibm.bitmapsource;
-                sc.Width = ibm.BitmapSize;
+                // if the user selected something so the value is not false or null for retruned bool? 
+                if (true == iconSelector.ShowDialog())
+                {
+                    //var x = iconSelector.DialogResult;
+                    sc.lnkData.IconIndex = iconSelector.idxIcon;
+                    sc.lnkData.IconSourceFilePath = iconsourcefiles[iconSelector.idxFile];
+
+                    // set the new icon
+                    IconBitMap ibm = null;
+                    if (sc.lnkData.IconIndex != USE_MAIN_ICON)
+                        ibm = ico2bmap.ExtractICO(sc.lnkData.IconSourceFilePath, sc.lnkData.IconIndex);
+                    if (null == ibm)
+                        ibm = ico2bmap.ExtractIconBitMap(System.Drawing.Icon.ExtractAssociatedIcon(sc.lnkData.IconSourceFilePath));
+                    sc.Source = ibm.bitmapsource;
+                    sc.Width = ibm.BitmapSize;
+                }
             }
         }
 
@@ -467,43 +511,10 @@ namespace KickOff
 
                     ShortcutCounter++;
 
-                    // Create Animations that modify the shortcut icons
-                    DoubleAnimation mo_animation = new DoubleAnimation
-                    {
-                        From = 1.0,
-                        To = 0.1,
-                        Duration = new Duration(TimeSpan.FromSeconds(0.35)),
-                        AutoReverse = true
-                        //RepeatBehavior = RepeatBehavior.Forever
-                    };
-                    
-                    var mo_storyboard = new Storyboard
-                    {
-                        RepeatBehavior = RepeatBehavior.Forever
-                    };
+                    /// Create Animations that modify the shortcut icons
+                    /// 
 
-                    Storyboard.SetTargetProperty(mo_animation, new PropertyPath("(Opacity)"));
-                    
-                    mo_storyboard.Children.Add(mo_animation);
-                    
-                    BeginStoryboard enterBeginStoryboard = new BeginStoryboard
-                    {
-                        Name = sc.Name + "_esb",
-                        Storyboard = mo_storyboard
-                    };
-
-                    // Set the name of the storyboard so it can be found
-                    NameScope.GetNameScope(this).RegisterName(enterBeginStoryboard.Name, enterBeginStoryboard);
-
-                    var moe = new EventTrigger(MouseEnterEvent);
-                    moe.Actions.Add(enterBeginStoryboard);
                     sc.Triggers.Add(moe);
-                    var mle = new EventTrigger(MouseLeaveEvent);
-                    mle.Actions.Add(
-                        new StopStoryboard
-                        {
-                            BeginStoryboardName = enterBeginStoryboard.Name
-                        });
                     sc.Triggers.Add(mle);
 
                     // Add a popup to display the link name when the mouse is over

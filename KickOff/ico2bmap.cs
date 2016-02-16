@@ -10,13 +10,14 @@ namespace KickOff
 {
     public static class ico2bmap
     {
-        [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.Winapi)]
-        private static extern int ExtractIconEx(string sFile, int iIndex, out IntPtr piLargeVersion, out IntPtr piSmallVersion, int amountIcons);
-        [DllImport("Shell32.dll", CharSet = CharSet.Auto)]
+        [DllImport("Shell32.dll", EntryPoint = "ExtractIconEx", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern int ExtractIconEx(string sFile, int iIndex, IntPtr[] piLargeVersion, IntPtr[] piSmallVersion, int amountIcons);
 
-        [DllImport("Shell32.dll", EntryPoint = "DestroyIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-        private static extern int DestroyIconEx(IntPtr pIcon);
+        [DllImport("user32.dll", EntryPoint = "DestroyIcon", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern int DestroyIcon(IntPtr hIcon);
+
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        public static extern bool DeleteObject(IntPtr hObject);
 
         public static int USE_MAIN_ICON = -1;
 
@@ -24,29 +25,38 @@ namespace KickOff
         {
             IconBitMap ibm = null;
 
+            Bitmap bm = null;
+            IntPtr hbm = IntPtr.Zero;
             try
             {
-                Bitmap bm = ico.ToBitmap();
-
+                bm = ico.ToBitmap();
+                hbm = bm.GetHbitmap();
                 BitmapSource bmsource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
-                    bm.GetHbitmap(), IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    hbm, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
 
                 ibm = new IconBitMap()
                 {
                     BitmapSize = bm.Width,
                     bitmap = bm,
                     bitmapsource = bmsource
-                    //writeablebitmap = wbitmap
                 };
-                bm.Dispose(); //release all resources used
             }
             catch (Exception e)
             {
-                lnkio.WriteProgramLog("ExtractIconBitMap failed: " + e.Message);
-                ibm = ExtractIconBitMap(SystemIcons.Error);
-                //throw new Exception(e.Message);
+                lnkio.WriteProgramLog("ExtractIconBitMap() failed: " + e.Message);
             }
+            finally
+            {
+                //release all resources used
+                if( IntPtr.Zero != hbm)
+                    DeleteObject(hbm);
 
+                if ( null != bm )
+                    bm.Dispose();
+
+                if ( null == ibm )
+                    ibm = ExtractIconBitMap(SystemIcons.Error);
+            }
             // must always return a valid icon bitmap 
             return ibm;
         }
@@ -54,26 +64,29 @@ namespace KickOff
         {
             return ExtractIconBitMap(Icon.FromHandle(pi));
         }
-        private static int ExtractIconEx_GetCount(string file, IntPtr ico_l, IntPtr ico_s)
+        private static int ExtractIconEx_GetCount(string file, IntPtr[] ico_l, IntPtr[] ico_s)
         {
-            return ExtractIconEx(file, -1, out ico_l, out ico_s, 1); ;
+            return ExtractIconEx(file, -1, ico_l, ico_s, 1); ;
         }
 
         private static IconBitMap ExtractIconBitMapFromFile(string file, int iconindex)
         {
-            IntPtr large=IntPtr.Zero;
-            IntPtr small=IntPtr.Zero;
+            IntPtr[] large = new IntPtr[1] { IntPtr.Zero };
+            IntPtr[] small = new IntPtr[1] { IntPtr.Zero };
             IconBitMap ibm = null;
             try
             {
-                int totalIcons = ExtractIconEx_GetCount(file, IntPtr.Zero, IntPtr.Zero);
+                int totalIcons = ExtractIconEx_GetCount(file, large, small);
 
                 if (totalIcons > iconindex)
                 {
-                    ExtractIconEx(file, iconindex, out large, out small, 1);
-                    if ( large != IntPtr.Zero )
+                    ExtractIconEx(file, iconindex, large, small, 1);
+                    if (large[0] != IntPtr.Zero)
                     {
-                        ibm = ExtractIconBitMap(large);
+                        ibm = ExtractIconBitMap(large[0]);
+                        DestroyIcon(large[0]);
+                        if (small[0] != IntPtr.Zero)
+                            DestroyIcon(small[0]);
                     }
                 }
             }
@@ -109,8 +122,6 @@ namespace KickOff
 
         private static ObservableCollection<IconBitMap> ExtractAllIconBitMapFromFile(string file, int maxIcons = 0)
         {
-            ObservableCollection<IconBitMap> ibm = new ObservableCollection<IconBitMap>();
-
             // limit the maximum number to be retrieved
             if (maxIcons > MAX_ICONS) maxIcons = MAX_ICONS;
 
@@ -118,6 +129,7 @@ namespace KickOff
             IntPtr[] small = new IntPtr[maxIcons];
             IconBitMap iconbitmap = null;
             bool bReportError = false;
+            ObservableCollection<IconBitMap> ibm = new ObservableCollection<IconBitMap>();
 
             try
             {
@@ -130,7 +142,7 @@ namespace KickOff
                 else {
                     // The number of icons retrieved may or may not be the icon count total
                     // It my be all of the large and small combined.
-                    int totalicons = ExtractIconEx_GetCount(file, IntPtr.Zero, IntPtr.Zero);
+                    int totalicons = ExtractIconEx_GetCount(file, large, small);
                     // totalicons will be the number of distinct icons large and small versions
                     if (totalicons > 0)
                     {
@@ -144,7 +156,7 @@ namespace KickOff
                         {
                             for (int i = 0; i < totalicons; i++)
                             {
-                                if ((IntPtr)0 != large[i])
+                                if (IntPtr.Zero != large[i])
                                 {
                                     iconbitmap = ExtractIconBitMap(large[i]);
                                     if (null != iconbitmap)
@@ -153,6 +165,9 @@ namespace KickOff
                                     {
                                         bReportError = true;
                                     }
+                                    DestroyIcon(large[i]);
+                                    if (IntPtr.Zero != small[i])
+                                        DestroyIcon(small[i]);
                                 }
                             }
                         }
@@ -188,21 +203,32 @@ namespace KickOff
                 iconbitmap = ExtractIconBitMap(SystemIcons.Error);
                 if (null != iconbitmap)
                     ibm.Add(iconbitmap);
-                lnkio.WriteProgramLog("Icon source anomaly: Failed to load icon(s) from " +
+                lnkio.WriteProgramLog("Icon source anomaly: Failed to load one or more icon(s) from " +
                     file + "System Error: " + e.Message);
                 bReportError = false;
             }
-            if (null == iconbitmap)
+            finally
             {
-                iconbitmap = ExtractIconBitMap(SystemIcons.Error);
-                if (null != iconbitmap)
-                    ibm.Add(iconbitmap);
-                else
-                    bReportError = true; 
+                // RELEASE RESOURCES
+                foreach (IntPtr ptr in large)
+                    if (ptr != IntPtr.Zero)
+                        DestroyIcon(ptr);
+
+                foreach (IntPtr ptr in small)
+                    if (ptr != IntPtr.Zero)
+                        DestroyIcon(ptr);
+                if (null == iconbitmap)
+                {
+                    iconbitmap = ExtractIconBitMap(SystemIcons.Error);
+                    if (null != iconbitmap)
+                        ibm.Add(iconbitmap);
+                    else
+                        bReportError = true;
+                }
             }
 
-            if(bReportError )
-                lnkio.WriteProgramLog("Icon source anomaly: Failed to load icon(s) from " + file);
+            if (bReportError )
+                lnkio.WriteProgramLog("Icon source anomaly: Failed to load one or more icon(s) from " + file);
 
             return ibm;
         }
