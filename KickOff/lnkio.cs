@@ -9,6 +9,8 @@ namespace KickOff
 {
     public static class lnkio
     {
+        public static string crlf = "\r\n";
+
         /*
         public static bool CreateShortcut(LnkData lnkData, string lnkFileName, string pathtoLnk)
         {
@@ -225,14 +227,18 @@ namespace KickOff
             System.IO.File.AppendAllText(LOGFILE, incident);
         }
 
-        private static string INIFILE = "KickOff.ini";
+        private static string INIFILE = "KickOff.INI";
+        private static string BAKFILE = "KickOff.BAK";
+
         public static void WriteProgramState(string ProgramState)
         {
             // Write the main window position and size, and the icon list
-            ProgramState = INIFILE + "\n"
-                + DateTime.Now.ToString() + "\n" + ProgramState;
+            ProgramState = INIFILE + crlf
+                + DateTime.Now.ToString() + crlf + ProgramState + "&" + crlf;
 
-            System.IO.File.WriteAllText(INIFILE, ProgramState);
+            //System.IO.File.WriteAllText(INIFILE, ProgramState);
+            System.IO.File.AppendAllText(INIFILE, ProgramState);
+
         }
 
         /// Read the main window position and size, and the icon list
@@ -240,7 +246,14 @@ namespace KickOff
         public static string ReadProgramState()
         {
             if (System.IO.File.Exists(INIFILE))
-                return System.IO.File.ReadAllText(INIFILE);
+            {
+                string s = System.IO.File.ReadAllText(INIFILE);
+                // copy old ini to a bak to allow multiple dialogs to update the settings using append
+                if (System.IO.File.Exists(BAKFILE))
+                    System.IO.File.Delete(BAKFILE);
+                System.IO.File.Move(INIFILE, BAKFILE);
+                return s;
+            }
             else
                 return string.Empty;
         }

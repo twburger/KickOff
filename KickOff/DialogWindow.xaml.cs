@@ -84,9 +84,9 @@ namespace KickOff
     }
 
     /// <summary>
-    /// Interaction logic for MainWindow.xaml
+    /// Interaction logic for KO_Dialog.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class KO_Dialog : Window
     {
         private ObservableCollection<Shortcut> Shortcuts = new ObservableCollection<Shortcut>();//null;
         //private WrapPanel MainPanel = new WrapPanel();
@@ -101,11 +101,29 @@ namespace KickOff
         private EventTrigger moe = null;
         private EventTrigger mle = null;
 
-        public MainWindow()
+        public KO_Dialog(string DlgParams)
         {
+            InitKO_Dialog(DlgParams);
+        }
+
+        public KO_Dialog()
+        {
+            InitKO_Dialog(null);
+        }
+
+        private string DlgParams = string.Empty;
+
+        private void InitKO_Dialog(string _dlgparams)
+        { 
             InitializeComponent();
 
-            Name = "KickoffMainWindow";
+            if (null == _dlgparams)
+                Name = "KickoffMainWindow";
+            else
+            {
+                Name = "KickoffDlg_" + DateTime.Now.Ticks.ToString();
+                DlgParams = _dlgparams;
+            }
 
             // Windows logoff or shutdown
             Application.Current.SessionEnding += Current_SessionEnding;
@@ -116,7 +134,7 @@ namespace KickOff
             //ObservableCollection<IconBitMap> allico = ico2bmap.ExtractAllIconBitMapFromFile("shell32.dll");
 
             // allow data to be dragged into app
-            AllowDrop = true;
+            //AllowDrop = true;
 
             //WindowStyle = WindowStyle.ToolWindow;
             //WindowStyle = WindowStyle.SingleBorderWindow;//WindowStyle.None;// WindowStyle.SingleBorderWindow;
@@ -141,15 +159,15 @@ namespace KickOff
             MainPanel.Margin = new Thickness(2);
             MainPanel.Width = Double.NaN; //auto
             MainPanel.Height = Double.NaN; //auto
-            MainPanel.AllowDrop = true;
+            MainPanel.AllowDrop = true; // allow data to be dragged into app
             MainPanel.Visibility = Visibility.Visible;
 
             // add handlers for mouse entering and leaving the main window
-            MouseEnter += MainWindow_MouseEnter;
-            MouseLeave += MainWindow_MouseLeave;
-            DragEnter += MainWindow_DragEnter;
-            DragOver += MainWindow_DragOver;
-            GiveFeedback += MainWindow_GiveFeedback;
+            MouseEnter += Dlg_MouseEnter;
+            MouseLeave += Dlg_MouseLeave;
+            DragEnter += Dlg_DragEnter;
+            DragOver += Dlg_DragOver;
+            GiveFeedback += Dlg_GiveFeedback;
             Drop += MainWindow_Drop;
 
             ShortcutCounter = 0;
@@ -330,7 +348,7 @@ namespace KickOff
         }
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            // get the program state
+            // Set the program state
             SetProgramState();
 
             //Add a handler to process custom main context menu items added
@@ -351,19 +369,21 @@ namespace KickOff
             SaveProgramState();
         }
 
+        
+
         public void SaveProgramState()
         {
             /// Get the current main window size and position, and the 
             /// paths to the shortcuts.
             ProgramState = string.Empty;
-            ProgramState += Top.ToString(); //Application.Current.MainWindow.Top.ToString();
-            ProgramState += "\n";
+            ProgramState += Top.ToString(); //Application.Current.KO_Dialog.Top.ToString();
+            ProgramState += crlf;
             ProgramState += Left.ToString();
-            ProgramState += "\n";
+            ProgramState += crlf;
             ProgramState += Height.ToString();
-            ProgramState += "\n";
+            ProgramState += crlf;
             ProgramState += Width.ToString();
-            ProgramState += "\n";
+            ProgramState += crlf;
 
             /// get the shortcuts from the panel so a new order
             /// is saved 
@@ -376,7 +396,7 @@ namespace KickOff
                 Shortcut s = (Shortcut)scs.Current;
                 ProgramState += s.lnkData.ShortcutAddress + INI_SPLIT_CHAR;
                 ProgramState += s.lnkData.IconSourceFilePath + INI_SPLIT_CHAR;
-                ProgramState += s.lnkData.IconIndex.ToString() + "\n";
+                ProgramState += s.lnkData.IconIndex.ToString() + crlf;
             }
 
             lnkio.WriteProgramState(ProgramState);
@@ -387,32 +407,66 @@ namespace KickOff
         public void SetProgramState()
         {
             ProgramState = string.Empty;
-            ProgramState = lnkio.ReadProgramState();
+
+            if (DlgParams != string.Empty)
+                ProgramState = this.DlgParams;
+            else
+                ProgramState = lnkio.ReadProgramState();
 
             if (string.Empty != ProgramState)
             {
-                // Break up on the newline 
-                string[] s = ProgramState.Split('\n');
+                // break up the settings on the & character to seperate dialogs
+                string[] dlgs = ProgramState.Split(new string[] { "&" }, StringSplitOptions.RemoveEmptyEntries);
 
-                // first is program name and second is timestamp
+                bool IsMain = true;
 
-                Application.Current.MainWindow.Top = Double.Parse(s[2]);
-                Application.Current.MainWindow.Left = Double.Parse(s[3]);
+                foreach(string d in dlgs)
+                {
+                    if (IsMain)
+                    {
+                        // Break up on the newline or return and newline
+                        string[] s = d.Split(new string[] { "\n", "\r\n" }, StringSplitOptions.RemoveEmptyEntries); // '\n');
+                        if (s.Length >= 6)
+                        {
+                            // first saved parameter is program name and second is timestamp, the remainder define the main and sub-dialogs
 
-                Application.Current.MainWindow.Height = Double.Parse(s[4]);
-                Application.Current.MainWindow.Width = Double.Parse(s[5]);
+                            this.Top = Double.Parse(s[2]);
+                            this.Left = Double.Parse(s[3]);
+                            this.Height = Double.Parse(s[4]);
+                            this.Width = Double.Parse(s[5]);
 
-                // skip the first 6 lines for the setting of the 3 elements of the array
-                IEnumerable<string> items = s.Skip(6);
-                s = items.ToArray<string>();
+                            //Application.Current.KO_Dialog.Top = Double.Parse(s[2]);
+                            //Application.Current.KO_Dialog.Left = Double.Parse(s[3]);
+                            //Application.Current.KO_Dialog.Height = Double.Parse(s[4]);
+                            //Application.Current.KO_Dialog.Width = Double.Parse(s[5]);
 
-                CreateShortCuts(s);
+                            // skip the first 6 lines and process the icon parameters for the main dialog
+                            IEnumerable<string> items = s.Skip(6);
+                            s = items.ToArray<string>();
 
-                PlaceShortcutsintoView();// s);
+                            CreateShortCuts(s);
+
+                            PlaceShortcutsintoView();// s);
+                        }
+                        IsMain = false;
+                    }
+                    else
+                    {
+                        if (d != string.Empty)
+                        {
+                            string[] s = d.Split(new string[] { "\n", "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+                            if (s.Length >= 6)
+                            {
+                                KO_Dialog dlg = new KO_Dialog(d);
+                                dlg.Show();
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        private void MainWindow_GiveFeedback(object sender, GiveFeedbackEventArgs e)
+        private void Dlg_GiveFeedback(object sender, GiveFeedbackEventArgs e)
         {
             if (e.Effects == DragDropEffects.None)
             {
@@ -430,7 +484,7 @@ namespace KickOff
             //throw new NotImplementedException();
         }
 
-        private void MainWindow_DragOver(object sender, DragEventArgs e)
+        private void Dlg_DragOver(object sender, DragEventArgs e)
         {
             //string[] dataFormats = eDropEvent.Data.GetFormats(true);
 
@@ -442,7 +496,7 @@ namespace KickOff
             e.Handled = true;
         }
 
-        private void MainWindow_DragEnter(object sender, DragEventArgs e)
+        private void Dlg_DragEnter(object sender, DragEventArgs e)
         {
             //string[] dataFormats = e.Data.GetFormats(true);
 
@@ -454,13 +508,13 @@ namespace KickOff
             //e.Handled = false;
         }
 
-        private void MainWindow_MouseEnter(object sender, MouseEventArgs e)
+        private void Dlg_MouseEnter(object sender, MouseEventArgs e)
         {
             e.Handled = false;
             //throw new NotImplementedException();
         }
 
-        private void MainWindow_MouseLeave(object sender, MouseEventArgs e)
+        private void Dlg_MouseLeave(object sender, MouseEventArgs e)
         {
             e.Handled = false;
             //throw new NotImplementedException();
@@ -849,6 +903,12 @@ namespace KickOff
             {
                 if (null == shortcutini || string.Empty == shortcutini)
                     continue;
+
+                /// Check if a sub dialog is being defined
+                /// If so create a new dialog 
+                ///
+
+                
 
                 /// The shortcut file names may be a path to a link file or target file/directory
                 /// or it may be that and a user selected icon source and index separated using 
