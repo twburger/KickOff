@@ -67,6 +67,7 @@ namespace KickOff
         public const Int32 SettingsSysMenuID = 9000;
         public const Int32 AboutSysMenuID = 9001;
         public const Int32 CloseSysMenuID = 9002;
+        public const Int32 AddDlgMenuID = 9003;
 
         internal static void ModifyMenu(this Window window)
         {
@@ -75,9 +76,10 @@ namespace KickOff
 
             /// Create our new System Menu items just before the Close menu item
             InsertMenu(systemMenuHandle, 5, MF_BYPOSITION | MF_SEPARATOR, 0, string.Empty); // <-- Add a menu seperator
-            InsertMenu(systemMenuHandle, 6, MF_BYPOSITION, SettingsSysMenuID, "Settings");
-            InsertMenu(systemMenuHandle, 7, MF_BYPOSITION, AboutSysMenuID, "About");
-            InsertMenu(systemMenuHandle, 8, MF_BYPOSITION, CloseSysMenuID, "Close All");
+            InsertMenu(systemMenuHandle, 6, MF_BYPOSITION, AddDlgMenuID, "Add Dialog");
+            InsertMenu(systemMenuHandle, 7, MF_BYPOSITION, SettingsSysMenuID, "Settings");
+            InsertMenu(systemMenuHandle, 8, MF_BYPOSITION, AboutSysMenuID, "About");
+            InsertMenu(systemMenuHandle, 9, MF_BYPOSITION, CloseSysMenuID, "Close All");
 
             // Attach our WndProc handler to this Window
             //HwndSource source = HwndSource.FromHwnd(systemMenuHandle);
@@ -324,6 +326,7 @@ namespace KickOff
                         //debugout(msg, wParam, lParam);
                         int hiP = High16(wParam); // Flags
                         int loP = Low16(wParam); //menu item
+                        MessageBoxResult mbr;
 
                         switch (loP)
                         {
@@ -331,15 +334,30 @@ namespace KickOff
                                 MessageBox.Show("Settingstext", "Caption Settings", MessageBoxButton.OK, MessageBoxImage.Information);
                                 handled = true;
                                 break;
+
                             case WindowExtensions.AboutSysMenuID:
                                 MessageBox.Show("About text", "Caption About", MessageBoxButton.OK, MessageBoxImage.Information);
                                 handled = true;
                                 break;
-                            case WindowExtensions.CloseSysMenuID:
-                                MessageBoxResult mbr = MessageBox.Show("Close all dialogs?", "Close App", MessageBoxButton.OKCancel, MessageBoxImage.Question);
-                                if( mbr == MessageBoxResult.OK)
+
+                            case WindowExtensions.AddDlgMenuID:
+                                mbr = MessageBox.Show("Create new dialog?", "New Dialog", MessageBoxButton.OKCancel, MessageBoxImage.Question);
                                 {
-                                    foreach(KO_Dialog od in OpenDialogs)
+                                    if (mbr == MessageBoxResult.OK)
+                                    {
+                                        KO_Dialog dlg = new KO_Dialog();
+                                        dlg.Show();
+                                    }
+                                }
+                                handled = true;
+                                break;
+
+                            case WindowExtensions.CloseSysMenuID:
+                                mbr = MessageBox.Show("Close all dialogs?", "Close App", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+
+                                if (mbr == MessageBoxResult.OK)
+                                {
+                                    foreach (KO_Dialog od in OpenDialogs)
                                     {
                                         od.Close();
                                     }
@@ -506,8 +524,8 @@ namespace KickOff
         {
             //string[] dataFormats = eDropEvent.Data.GetFormats(true);
 
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
-                e.Effects = DragDropEffects.Copy;
+            if (e.Data.GetDataPresent(DataFormats.FileDrop) || e.Data.GetDataPresent(SC_DROP_FORMAT))
+                e.Effects = DragDropEffects.Move; //.Copy;
             else
                 e.Effects = DragDropEffects.None;
 
@@ -518,11 +536,12 @@ namespace KickOff
         {
             //string[] dataFormats = e.Data.GetFormats(true);
 
-                if (e.Data.GetDataPresent(DataFormats.FileDrop))
-                    e.Effects = DragDropEffects.Copy;
-                else
-                    e.Effects = DragDropEffects.None;
-                e.Handled = true;
+            if (e.Data.GetDataPresent(DataFormats.FileDrop) || e.Data.GetDataPresent(SC_DROP_FORMAT))
+                e.Effects = DragDropEffects.Move; //.Copy;
+            else
+                e.Effects = DragDropEffects.None;
+            e.Handled = true;
+
             //e.Handled = false;
         }
 
@@ -550,11 +569,28 @@ namespace KickOff
             {
                 string[] FileList = (string[])eDropEvent.Data.GetData(DataFormats.FileDrop, false);
 
-                /// Create the shortcuts
-                /// 
                 CreateShortCuts(FileList);
+                PlaceShortcutsintoView();
 
-                PlaceShortcutsintoView(); // FileList);
+                eDropEvent.Handled = true;
+            }
+            else if( eDropEvent.Data.GetDataPresent(SC_DROP_FORMAT) )
+            {
+                ShortcutDropData sdd = (ShortcutDropData) eDropEvent.Data.GetData(SC_DROP_FORMAT);
+                Shortcut s = sdd._parent.Children[sdd._idx] as Shortcut;
+                string[] FileList = new string[] { s.lnkData.ShortcutAddress};
+
+                // a drop onto the icon also sets off a drop onto a dialog - do not reproduce the icon
+                var items = Shortcuts.Where(x => x.lnkData.ShortcutAddress == FileList[0]);
+                if (items.Count() == 0)
+                {
+                    CreateShortCuts(FileList);
+                    PlaceShortcutsintoView();
+
+                    // remove the shortcut from the parent panel before pacing it here 
+                    ((KO_Dialog)sdd._parent.Parent).DeleteShortcut(s);
+                    //MainPanel.Children.Add(s);
+                }
 
                 eDropEvent.Handled = true;
             }
@@ -571,9 +607,9 @@ namespace KickOff
                 {
                     sc.Name = "_Icon" + ShortcutCounter.ToString(); // used to match image to data
 
-                    /// Set sorting order
-                    /// 
+                    // Set sorting order
                     sc.SortOrder = ShortcutCounter;
+                    ShortcutCounter++;
 
                     /// Set the image bitmap
                     /// 
@@ -581,7 +617,6 @@ namespace KickOff
                     sc.Source = sc.lnkData.icoBitmap.bitmapsource; //.Bitmap.bitmapsource;
                     sc.Visibility = Visibility.Visible;
 
-                    ShortcutCounter++;
 
                     /// Create Animations that modify the shortcut icons
                     /// 
@@ -648,69 +683,77 @@ namespace KickOff
             RunShortcut((Shortcut)sender);
         }
 
+        /// <summary>
+        /// Drop an icon onto another switching the positions with each other
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void SC_drop(object sender, DragEventArgs e)
         {
-            //string[] dataFormats = e.Data.GetFormats(true);
-
-            // If the DataObject contains string data, extract it.
-            if (e.Data.GetDataPresent(SC_DROP_FORMAT))
+            try
             {
-                int srcidx = (int)e.Data.GetData(SC_DROP_FORMAT);
-                Shortcut SourceIcon = (Shortcut)MainPanel.Children[srcidx];
-                //Shortcut src = (Shortcut)e.Data.GetData(SC_DROP_FORMAT);
+                //string[] dataFormats = e.Data.GetFormats(true);
 
-                Shortcut TargetIcon = (Shortcut)e.OriginalSource;
-                //Shortcut trg = (Shortcut)this.InputHitTest(e.GetPosition(this));
-                if (TargetIcon != SourceIcon)
+                // If the DataObject contains the correct format, extract the info and move the icons
+                if (e.Data.GetDataPresent(SC_DROP_FORMAT))
                 {
-                    try
+                    ShortcutDropData sdd = (ShortcutDropData)e.Data.GetData(SC_DROP_FORMAT);
+                    Shortcut TargetIcon = (Shortcut)e.OriginalSource;
+
+                    if (sdd._parent == TargetIcon.Parent)
                     {
-                        // remove the shortcut from the list, the panel and destroy itself
-                        if (SourceIcon != null && MainPanel.Children.Contains(SourceIcon))
+                        Shortcut SourceIcon = (Shortcut)MainPanel.Children[sdd._idx];
+
+                        //Shortcut trg = (Shortcut)this.InputHitTest(e.GetPosition(this));
+                        if (TargetIcon != SourceIcon)
                         {
-                            // must be removed first before inserting it with new index
-                            int Source_idx = MainPanel.Children.IndexOf(SourceIcon);
-                            int Target_idx = MainPanel.Children.IndexOf(TargetIcon);
+                            // remove the shortcut from the list, the panel and destroy itself
+                            if (SourceIcon != null && MainPanel.Children.Contains(SourceIcon))
+                            {
+                                // must be removed first before inserting it with new index
+                                int Source_idx = MainPanel.Children.IndexOf(SourceIcon);
+                                int Target_idx = MainPanel.Children.IndexOf(TargetIcon);
 
-                            DeleteShortcut(TargetIcon);
-                            MainPanel.Children.Insert(Source_idx, TargetIcon);
-                            Shortcuts.Add(TargetIcon);
+                                DeleteShortcut(TargetIcon);
+                                MainPanel.Children.Insert(Source_idx, TargetIcon);
+                                Shortcuts.Add(TargetIcon);
 
-                            DeleteShortcut(SourceIcon);
-                            MainPanel.Children.Insert(Target_idx, SourceIcon);
-                            Shortcuts.Add(SourceIcon);
+                                DeleteShortcut(SourceIcon);
+                                MainPanel.Children.Insert(Target_idx, SourceIcon);
+                                Shortcuts.Add(SourceIcon);
 
-                            // delete the icon with the lowest index
-                            //if (Source_idx > Target_idx)
-                            //{
-                            //    //DeleteShortcut(TargetIcon);
-                            //    MainPanel.Children.Insert
-                            //}
-                            //else
-                            //{
-                            //    DeleteShortcut(SourceIcon);
-                            //}
+                                // delete the icon with the lowest index
+                                //if (Source_idx > Target_idx)
+                                //{
+                                //    //DeleteShortcut(TargetIcon);
+                                //    MainPanel.Children.Insert
+                                //}
+                                //else
+                                //{
+                                //    DeleteShortcut(SourceIcon);
+                                //}
 
-                            //if (MainPanel.Children.Count < Target_idx)
-                            //    MainPanel.Children.Add(SourceIcon);
-                            //else
-                            //    MainPanel.Children.Insert(Target_idx, SourceIcon);
+                                //if (MainPanel.Children.Count < Target_idx)
+                                //    MainPanel.Children.Add(SourceIcon);
+                                //else
+                                //    MainPanel.Children.Insert(Target_idx, SourceIcon);
 
-                            //if (MainPanel.Children.Count < Source_idx)
-                            //    MainPanel.Children.Add(TargetIcon);
-                            //else
-                            //   MainPanel.Children.Insert(Source_idx, TargetIcon);
+                                //if (MainPanel.Children.Count < Source_idx)
+                                //    MainPanel.Children.Add(TargetIcon);
+                                //else
+                                //   MainPanel.Children.Insert(Source_idx, TargetIcon);
+                            }
+
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        lnkio.WriteProgramLog(ex.Message);
-                        //throw new Exception(ex.Message);
-                    }
-                    //finally{}
                 }
             }
-            //throw new NotImplementedException();
+            catch (Exception ex)
+            {
+                lnkio.WriteProgramLog(ex.Message);
+                //throw new Exception(ex.Message);
+            }
+            //finally{}//throw new NotImplementedException();
         }
 
         private void SC_dragOver(object sender, DragEventArgs e)
@@ -744,10 +787,11 @@ namespace KickOff
                 if( MainPanel.Children.Contains(sc) )
                 {
                     // Can just pass its index or the whole object
-                    int sourceidx = MainPanel.Children.IndexOf(sc);
+                    //int sourceidx = MainPanel.Children.IndexOf(sc);
+                    ShortcutDropData sdd = new ShortcutDropData(MainPanel.Children.IndexOf(sc), sc.Parent as UniformGrid);
                     //DataObject dragData = new DataObject(SC_DROP_FORMAT, sc);
-                    DataObject dragData = new DataObject(SC_DROP_FORMAT, sourceidx);
-                    DragDrop.DoDragDrop(sc, dragData, DragDropEffects.Move);
+                    DataObject dragData = new DataObject(SC_DROP_FORMAT, sdd); // sourceidx);
+                    DragDrop.DoDragDrop(sc, dragData, DragDropEffects.Move); //  DragDropEffects.Copy);
                 }
             }
         }
@@ -1049,6 +1093,17 @@ namespace KickOff
         }
 
     } //----------- Main Class
+
+    struct ShortcutDropData
+    {
+        public int _idx;
+        public UniformGrid _parent;
+        public ShortcutDropData(int idx, UniformGrid parent)
+        {
+            this._parent = parent;
+            this._idx = idx;
+        }
+    }
 
     public class Shortcut : System.Windows.Controls.Image
     {
