@@ -21,7 +21,7 @@ namespace KickOff
         {
             try
             {
-                this.Triggers.Clear();
+                if (this.Triggers.Count > 0) this.Triggers.Clear();
                 //IEnumerator scs = MainIconPanel.Children.GetEnumerator();
                 //scs.Reset();
                 //while (scs.MoveNext())

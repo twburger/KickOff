@@ -66,6 +66,7 @@ namespace KickOff
         private const Int32 MF_STRING = 0x0;
         public const Int32 SettingsSysMenuID = 9000;
         public const Int32 AboutSysMenuID = 9001;
+        public const Int32 CloseSysMenuID = 9002;
 
         internal static void ModifyMenu(this Window window)
         {
@@ -74,8 +75,9 @@ namespace KickOff
 
             /// Create our new System Menu items just before the Close menu item
             InsertMenu(systemMenuHandle, 5, MF_BYPOSITION | MF_SEPARATOR, 0, string.Empty); // <-- Add a menu seperator
-            InsertMenu(systemMenuHandle, 6, MF_BYPOSITION, SettingsSysMenuID, "Settings..");
-            InsertMenu(systemMenuHandle, 7, MF_BYPOSITION, AboutSysMenuID, "About..");
+            InsertMenu(systemMenuHandle, 6, MF_BYPOSITION, SettingsSysMenuID, "Settings");
+            InsertMenu(systemMenuHandle, 7, MF_BYPOSITION, AboutSysMenuID, "About");
+            InsertMenu(systemMenuHandle, 8, MF_BYPOSITION, CloseSysMenuID, "Close All");
 
             // Attach our WndProc handler to this Window
             //HwndSource source = HwndSource.FromHwnd(systemMenuHandle);
@@ -100,6 +102,7 @@ namespace KickOff
         public static int USE_MAIN_ICON = ico2bmap.USE_MAIN_ICON;
         private EventTrigger moe = null;
         private EventTrigger mle = null;
+        private static List<KO_Dialog> OpenDialogs = new List<KO_Dialog>();
 
         public KO_Dialog(string DlgParams)
         {
@@ -168,7 +171,7 @@ namespace KickOff
             DragEnter += Dlg_DragEnter;
             DragOver += Dlg_DragOver;
             GiveFeedback += Dlg_GiveFeedback;
-            Drop += MainWindow_Drop;
+            Drop += Dlg_Drop;
 
             ShortcutCounter = 0;
 
@@ -227,7 +230,7 @@ namespace KickOff
             Content = MainPanel;
 
             // add load behavior to change size and position to last saved
-            Loaded += MainWindow_Loaded;
+            Loaded += Dlg_Loaded;
 
             //DataContext = this;
         }
@@ -332,6 +335,17 @@ namespace KickOff
                                 MessageBox.Show("About text", "Caption About", MessageBoxButton.OK, MessageBoxImage.Information);
                                 handled = true;
                                 break;
+                            case WindowExtensions.CloseSysMenuID:
+                                MessageBoxResult mbr = MessageBox.Show("Close all dialogs?", "Close App", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                                if( mbr == MessageBoxResult.OK)
+                                {
+                                    foreach(KO_Dialog od in OpenDialogs)
+                                    {
+                                        od.Close();
+                                    }
+                                }
+                                handled = true;
+                                break;
                         }
                         break;
                 }
@@ -346,7 +360,7 @@ namespace KickOff
             Shortcut sc = cm.PlacementTarget as Shortcut;
             DeleteShortcut(sc);
         }
-        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        private void Dlg_Loaded(object sender, RoutedEventArgs e)
         {
             // Set the program state
             SetProgramState();
@@ -355,6 +369,9 @@ namespace KickOff
             IntPtr windowhandle = new WindowInteropHelper(this).Handle;
             HwndSource hwndSource = HwndSource.FromHwnd(windowhandle);
             hwndSource.AddHook(new HwndSourceHook(ProcessCustomMainContext));
+
+            // Add this new dialog window to the list of open dialogs
+            OpenDialogs.Add(this);
         }
 
         private void Current_SessionEnding(object sender, SessionEndingCancelEventArgs e)
@@ -459,6 +476,7 @@ namespace KickOff
                             {
                                 KO_Dialog dlg = new KO_Dialog(d);
                                 dlg.Show();
+                                //OpenDialogs.Add(dlg);
                             }
                         }
                     }
@@ -520,7 +538,7 @@ namespace KickOff
             //throw new NotImplementedException();
         }
 
-        private void MainWindow_Drop(object sender, DragEventArgs eDropEvent)
+        private void Dlg_Drop(object sender, DragEventArgs eDropEvent)
         {
             // init base code
             //base.OnDrop(eDropEvent);  // do not use this code does all needed
@@ -638,27 +656,50 @@ namespace KickOff
             if (e.Data.GetDataPresent(SC_DROP_FORMAT))
             {
                 int srcidx = (int)e.Data.GetData(SC_DROP_FORMAT);
-                Shortcut src = (Shortcut)MainPanel.Children[srcidx];
+                Shortcut SourceIcon = (Shortcut)MainPanel.Children[srcidx];
                 //Shortcut src = (Shortcut)e.Data.GetData(SC_DROP_FORMAT);
 
-                Shortcut trg = (Shortcut)e.OriginalSource;
+                Shortcut TargetIcon = (Shortcut)e.OriginalSource;
                 //Shortcut trg = (Shortcut)this.InputHitTest(e.GetPosition(this));
-                if (trg != src)
+                if (TargetIcon != SourceIcon)
                 {
                     try
                     {
                         // remove the shortcut from the list, the panel and destroy itself
-                        if (src != null && MainPanel.Children.Contains(src))
+                        if (SourceIcon != null && MainPanel.Children.Contains(SourceIcon))
                         {
-                            // Deleting an object requires anything that may 
-                            // reference it like events to be doing this 
-                            // need to be cleared
-
-                            int targetidx = MainPanel.Children.IndexOf(trg);
-                            src.Triggers.Clear();
                             // must be removed first before inserting it with new index
-                            MainPanel.Children.Remove(src);
-                            MainPanel.Children.Insert(targetidx, src);
+                            int Source_idx = MainPanel.Children.IndexOf(SourceIcon);
+                            int Target_idx = MainPanel.Children.IndexOf(TargetIcon);
+
+                            DeleteShortcut(TargetIcon);
+                            MainPanel.Children.Insert(Source_idx, TargetIcon);
+                            Shortcuts.Add(TargetIcon);
+
+                            DeleteShortcut(SourceIcon);
+                            MainPanel.Children.Insert(Target_idx, SourceIcon);
+                            Shortcuts.Add(SourceIcon);
+
+                            // delete the icon with the lowest index
+                            //if (Source_idx > Target_idx)
+                            //{
+                            //    //DeleteShortcut(TargetIcon);
+                            //    MainPanel.Children.Insert
+                            //}
+                            //else
+                            //{
+                            //    DeleteShortcut(SourceIcon);
+                            //}
+
+                            //if (MainPanel.Children.Count < Target_idx)
+                            //    MainPanel.Children.Add(SourceIcon);
+                            //else
+                            //    MainPanel.Children.Insert(Target_idx, SourceIcon);
+
+                            //if (MainPanel.Children.Count < Source_idx)
+                            //    MainPanel.Children.Add(TargetIcon);
+                            //else
+                            //   MainPanel.Children.Insert(Source_idx, TargetIcon);
                         }
                     }
                     catch (Exception ex)
@@ -732,8 +773,9 @@ namespace KickOff
                     // Deleting an object requires anything that may 
                     // reference it like events to be doing this 
                     // need to be cleared
-                    sc.Triggers.Clear();
-                    int target = MainPanel.Children.IndexOf(sc);
+                    //if (sc.Triggers.Count > 0) sc.Triggers.Clear();
+
+                    //int target = MainPanel.Children.IndexOf(sc);
                     MainPanel.Children.Remove(sc);
                     
                     // Delete the shortcut from the internal list

@@ -158,7 +158,7 @@ namespace KickOff
                             }
                             // Just run the lnk file
                             // do not need to have knowledge of what to run just make file the target
-                            // but do get the taget file so the original target icon can be selected by the user
+                            // but do get the target file so the original target icon can be selected by the user
                                 lnkData = new LnkData
                             {
                                 Arguments = string.Empty,
@@ -222,7 +222,7 @@ namespace KickOff
         public static void WriteProgramLog(string incident)
         {
             // Write the main window position and size, and the icon list
-            incident = DateTime.Now.ToString() + ": " + incident + "\n";
+            incident = DateTime.Now.ToString() + ": " + incident + crlf;
 
             System.IO.File.AppendAllText(LOGFILE, incident);
         }
@@ -266,10 +266,23 @@ namespace KickOff
                 lnkPath = System.IO.Path.GetFullPath(lnkPath);
                 var dir = shl.NameSpace(System.IO.Path.GetDirectoryName(lnkPath));
                 var itm = dir.Items().Item(System.IO.Path.GetFileName(lnkPath));
-                var lnk = (Shell32.ShellLinkObject)itm.GetLink;
-                link = lnk.Target.Path;
-                //link = lnk.Path;
+                Shell32.ShellLinkObject lnk = null;
+                try
+                {
+                    lnk = (Shell32.ShellLinkObject)itm.GetLink;
+                }
+                catch (Exception e)
+                {
+                    WriteProgramLog("Could not read file: " + lnkPath + crlf + "/t Reason: " + e.Message);
+                }
+                finally
+                {
+                    if( null != lnk )
+                        link = lnk.Target.Path;
+                }
 
+                
+                //link = lnk.Path;
                 //var x = (Shell32.FolderItem)itm.Application;
                 //link = x.Application;
                 /*
@@ -315,7 +328,7 @@ namespace KickOff
             }
             catch (Exception e)
             {
-                WriteProgramLog("Could not read file: " + lnkPath + "\n\t Reason: " + e.Message);
+                WriteProgramLog("Could not read file: " + lnkPath + crlf + "/t Reason: " + e.Message);
                 //throw new Exception(e.Message);
             }
             return link;
