@@ -269,11 +269,15 @@ namespace KickOff
                 Shell32.ShellLinkObject lnk = null;
                 try
                 {
+                    /* This fails with a security exception if the object is a link and the user 
+                     * does not have full control rights
+                     */
+
                     lnk = (Shell32.ShellLinkObject)itm.GetLink;
                 }
                 catch (Exception e)
                 {
-                    WriteProgramLog("Could not read file: " + lnkPath + crlf + "/t Reason: " + e.Message);
+                    WriteProgramLog("Could not read file: " + lnkPath + crlf + "Reason: " + e.Message);
                 }
                 finally
                 {
@@ -328,7 +332,7 @@ namespace KickOff
             }
             catch (Exception e)
             {
-                WriteProgramLog("Could not read file: " + lnkPath + crlf + "/t Reason: " + e.Message);
+                WriteProgramLog("Could not read file: " + lnkPath + crlf + "Reason: " + e.Message);
                 //throw new Exception(e.Message);
             }
             return link;

@@ -68,6 +68,7 @@ namespace KickOff
         public const Int32 AboutSysMenuID = 9001;
         public const Int32 CloseSysMenuID = 9002;
         public const Int32 AddDlgMenuID = 9003;
+        public const Int32 DeleteDlgMenuID = 9004;
 
         internal static void ModifyMenu(this Window window)
         {
@@ -80,6 +81,7 @@ namespace KickOff
             InsertMenu(systemMenuHandle, 7, MF_BYPOSITION, SettingsSysMenuID, "Settings");
             InsertMenu(systemMenuHandle, 8, MF_BYPOSITION, AboutSysMenuID, "About");
             InsertMenu(systemMenuHandle, 9, MF_BYPOSITION, CloseSysMenuID, "Close All");
+            InsertMenu(systemMenuHandle, 10, MF_BYPOSITION, DeleteDlgMenuID, "Delete this window");
 
             // Attach our WndProc handler to this Window
             //HwndSource source = HwndSource.FromHwnd(systemMenuHandle);
@@ -105,6 +107,7 @@ namespace KickOff
         private EventTrigger moe = null;
         private EventTrigger mle = null;
         private static List<KO_Dialog> OpenDialogs = new List<KO_Dialog>();
+        private bool IsDeleted = false;
 
         public KO_Dialog(string DlgParams)
         {
@@ -206,18 +209,21 @@ namespace KickOff
                 RepeatBehavior = RepeatBehavior.Forever
             };
 
+            // the animation is varying opacity
             Storyboard.SetTargetProperty(mo_animation, new PropertyPath("(Opacity)"));
 
             mo_storyboard.Children.Add(mo_animation);
 
-            BeginStoryboard enterBeginStoryboard = new BeginStoryboard
+            //BeginStoryboard enterBeginStoryboard = new BeginStoryboard
+            var enterBeginStoryboard = new BeginStoryboard
             {
                 Name = this.Name + "_esb", //sc.Name + "_esb",
                 Storyboard = mo_storyboard
             };
 
             // Set the name of the storyboard so it can be found
-            NameScope.GetNameScope(this).RegisterName(enterBeginStoryboard.Name, enterBeginStoryboard);
+            NameScope.GetNameScope(this).RegisterName(name: enterBeginStoryboard.Name,
+                                                      scopedElement: enterBeginStoryboard);
 
             moe = new EventTrigger(MouseEnterEvent);
             moe.Actions.Add(enterBeginStoryboard);
@@ -364,6 +370,18 @@ namespace KickOff
                                 }
                                 handled = true;
                                 break;
+
+                            case WindowExtensions.DeleteDlgMenuID:
+                                mbr = MessageBox.Show("Delete Dialog", "Delete this dialog?", MessageBoxButton.OKCancel, MessageBoxImage.Information);
+                                if (mbr == MessageBoxResult.OK)
+                                {
+                                    //Close this dialog and remove it from the restore list
+                                    this.IsDeleted = true;
+                                    this.Close();
+                                }
+                                handled = true;
+                                break;
+
                         }
                         break;
                 }
@@ -404,38 +422,38 @@ namespace KickOff
             SaveProgramState();
         }
 
-        
-
         public void SaveProgramState()
         {
-            /// Get the current main window size and position, and the 
-            /// paths to the shortcuts.
-            ProgramState = string.Empty;
-            ProgramState += Top.ToString(); //Application.Current.KO_Dialog.Top.ToString();
-            ProgramState += crlf;
-            ProgramState += Left.ToString();
-            ProgramState += crlf;
-            ProgramState += Height.ToString();
-            ProgramState += crlf;
-            ProgramState += Width.ToString();
-            ProgramState += crlf;
-
-            /// get the shortcuts from the panel so a new order
-            /// is saved 
-            /// 
-            //foreach (Shortcut s in Shortcuts)
-            IEnumerator scs = MainPanel.Children.GetEnumerator();
-            scs.Reset();
-            while (scs.MoveNext())
+            if (!this.IsDeleted)
             {
-                Shortcut s = (Shortcut)scs.Current;
-                ProgramState += s.lnkData.ShortcutAddress + INI_SPLIT_CHAR;
-                ProgramState += s.lnkData.IconSourceFilePath + INI_SPLIT_CHAR;
-                ProgramState += s.lnkData.IconIndex.ToString() + crlf;
+                /// Get the current main window size and position, and the 
+                /// paths to the shortcuts.
+                ProgramState = string.Empty;
+                ProgramState += Top.ToString(); //Application.Current.KO_Dialog.Top.ToString();
+                ProgramState += crlf;
+                ProgramState += Left.ToString();
+                ProgramState += crlf;
+                ProgramState += Height.ToString();
+                ProgramState += crlf;
+                ProgramState += Width.ToString();
+                ProgramState += crlf;
+
+                /// get the shortcuts from the panel so a new order
+                /// is saved 
+                /// 
+                //foreach (Shortcut s in Shortcuts)
+                IEnumerator scs = MainPanel.Children.GetEnumerator();
+                scs.Reset();
+                while (scs.MoveNext())
+                {
+                    Shortcut s = (Shortcut)scs.Current;
+                    ProgramState += s.lnkData.ShortcutAddress + INI_SPLIT_CHAR;
+                    ProgramState += s.lnkData.IconSourceFilePath + INI_SPLIT_CHAR;
+                    ProgramState += s.lnkData.IconIndex.ToString() + crlf;
+                }
+
+                lnkio.WriteProgramState(ProgramState);
             }
-
-            lnkio.WriteProgramState(ProgramState);
-
             //throw new NotImplementedException();
         }
 

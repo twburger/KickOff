@@ -1,0 +1,40 @@
+System.InvalidOperationException
+  HResult=0x80131509
+  Message='IconSelectWindow_esb' name cannot be found in the name scope of 'KickOff.IconImage'.
+  Source=PresentationFramework
+  StackTrace:
+   at System.Windows.Media.Animation.Storyboard.ResolveBeginStoryboardName(String targetName, INameScope nameScope, FrameworkElement fe, FrameworkContentElement fce)
+   at System.Windows.Media.Animation.ControllableStoryboardAction.GetStoryboard(FrameworkElement fe, FrameworkContentElement fce, INameScope nameScope)
+   at System.Windows.Media.Animation.ControllableStoryboardAction.Invoke(FrameworkElement fe)
+   at System.Windows.EventTrigger.EventTriggerSourceListener.Handler(Object sender, RoutedEventArgs e)
+   at System.Windows.EventRoute.InvokeHandlersImpl(Object source, RoutedEventArgs args, Boolean reRaised)
+   at System.Windows.UIElement.RaiseEventImpl(DependencyObject sender, RoutedEventArgs args)
+   at System.Windows.ReverseInheritProperty.FirePropertyChangeInAncestry(DependencyObject element, Boolean oldValue, DeferredElementTreeState treeState, Action`2 originChangedAction)
+   at System.Windows.ReverseInheritProperty.OnOriginValueChanged(DependencyObject oldOrigin, DependencyObject newOrigin, IList`1 otherOrigins, DeferredElementTreeState& oldTreeState, Action`2 originChangedAction)
+   at System.Windows.Input.MouseDevice.ChangeMouseOver(IInputElement mouseOver, Int32 timestamp)
+   at System.Windows.Input.MouseDevice.PreNotifyInput(Object sender, NotifyInputEventArgs e)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Input.InputManager.ProcessInput(InputEventArgs input)
+   at System.Windows.Input.MouseDevice.Synchronize()
+   at System.Windows.Input.MouseDevice.PostProcessInput(Object sender, ProcessInputEventArgs e)
+   at System.Windows.Input.InputManager.RaiseProcessInputEventHandlers(ProcessInputEventHandler postProcessInput, ProcessInputEventArgs processInputEventArgs)
+   at System.Windows.Input.InputManager.ProcessStagingArea()
+   at System.Windows.Input.InputManager.ProcessInput(InputEventArgs input)
+   at System.Windows.Input.InputProviderSite.ReportInput(InputReport inputReport)
+   at System.Windows.Interop.HwndMouseInputProvider.ReportInput(IntPtr hwnd, InputMode mode, Int32 timestamp, RawMouseActions actions, Int32 x, Int32 y, Int32 wheel)
+   at System.Windows.Interop.HwndMouseInputProvider.FilterMessage(IntPtr hwnd, WindowMessage msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at System.Windows.Interop.HwndSource.InputFilterMessage(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndWrapper.WndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam, Boolean& handled)
+   at MS.Win32.HwndSubclass.DispatcherCallbackOperation(Object o)
+   at System.Windows.Threading.ExceptionWrapper.InternalRealCall(Delegate callback, Object args, Int32 numArgs)
+   at System.Windows.Threading.ExceptionWrapper.TryCatchWhen(Object source, Delegate callback, Object args, Int32 numArgs, Delegate catchHandler)
+   at System.Windows.Threading.Dispatcher.LegacyInvokeImpl(DispatcherPriority priority, TimeSpan timeout, Delegate method, Object args, Int32 numArgs)
+   at MS.Win32.HwndSubclass.SubclassWndProc(IntPtr hwnd, Int32 msg, IntPtr wParam, IntPtr lParam)
+   at MS.Win32.UnsafeNativeMethods.DispatchMessage(MSG& msg)
+   at System.Windows.Threading.Dispatcher.PushFrameImpl(DispatcherFrame frame)
+   at System.Windows.Application.RunDispatcher(Object ignore)
+   at System.Windows.Application.RunInternal(Window window)
+   at KickOff.App.Main()
+
+  This exception was originally thrown at this call stack:
+    [External Code]
