@@ -128,3 +128,40 @@ Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
 Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
 12/20/2024 3:14:54 PM: Could not read file: C:\Users\Public\Desktop\Thunderbird.lnk
 Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/21/2024 5:34:11 PM: Could not read file: C:\Users\Public\Desktop\Transmission Qt Client.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/21/2024 5:46:00 PM: Could not read file: C:\Users\Public\Desktop\Unity Hub.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 1:04:25 PM: Could not read file: C:\Users\Public\Desktop\GIMP 2.10.38.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 1:05:04 PM: Could not read file: C:\Users\Public\Desktop\GIMP 2.10.38.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 1:19:53 PM: Could not read file: C:\Users\Public\Desktop\GIMP 2.10.38.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 1:52:25 PM: Could not read file: C:\Users\Public\Desktop\GIMP 2.10.38.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 1:53:26 PM: Could not read file: C:\Users\Public\Desktop\GIMP 2.10.38.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 1:57:58 PM: Could not read file: C:\Users\Public\Desktop\GIMP 2.10.38.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 1:58:33 PM: Could not read file: C:\Users\Public\Desktop\VLC media player.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 2:02:24 PM: Could not read file: C:\Users\Public\Desktop\GIMP 2.10.38.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 2:03:06 PM: Could not read file: C:\Users\Public\Desktop\GIMP 2.10.38.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 2:03:19 PM: Could not read file: C:\Users\Public\Desktop\GIMP 2.10.38.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 2:03:21 PM: Could not read file: C:\Users\Public\Desktop\VLC media player.lnk
+Reason: Access is denied. (Exception from HRESULT: 0x80070005 (E_ACCESSDENIED))
+12/22/2024 2:57:35 PM: The operation was canceled by the user
+12/22/2024 4:12:00 PM: Did not get a bitmap source from the file: C:\Users\User\Documents\GitHub System Error: C:\Users\User\Documents\GitHub
+12/22/2024 4:13:13 PM: Icon source anomaly: Failed to load one or more icon(s) from C:\Users\User\Documents\GitHubSystem Error: C:\Users\User\Documents\GitHub
+12/22/2024 4:13:19 PM: Icon source anomaly: Failed to load one or more icon(s) from C:\Users\User\Documents\GitHubSystem Error: C:\Users\User\Documents\GitHub
+12/22/2024 4:36:30 PM: Did not get a bitmap source from the file: C:\Users\User\Documents\Visual Studio 2019 System Error: C:\Users\User\Documents\Visual Studio 2019
+12/22/2024 4:49:32 PM: Did not get a bitmap source from the file: C:\Users\User\Documents\Visual Studio 2019\Visualizers System Error: C:\Users\User\Documents\Visual Studio 2019\Visualizers
+12/22/2024 4:49:45 PM: Icon source anomaly: Failed to load one or more icon(s) from C:\Users\User\Documents\Visual Studio 2019\VisualizersSystem Error: C:\Users\User\Documents\Visual Studio 2019\Visualizers
+12/22/2024 4:49:47 PM: Icon source anomaly: Failed to load one or more icon(s) from C:\Users\User\Documents\Visual Studio 2019\VisualizersSystem Error: C:\Users\User\Documents\Visual Studio 2019\Visualizers
+12/22/2024 4:56:17 PM: Icon source anomaly: Failed to load one or more icon(s) from C:\Users\User\Documents\Visual Studio 2019\TemplatesSystem Error: C:\Users\User\Documents\Visual Studio 2019\Templates
+12/22/2024 4:56:19 PM: Icon source anomaly: Failed to load one or more icon(s) from C:\Users\User\Documents\Visual Studio 2019\TemplatesSystem Error: C:\Users\User\Documents\Visual Studio 2019\Templates
+12/22/2024 5:05:56 PM: No application is associated with the specified file for this operation

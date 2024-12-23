@@ -262,18 +262,26 @@ namespace KickOff
             string link = string.Empty;
             try
             {
-                var shl = new Shell32.Shell();         // Move this to class scope
+                //var shl = new Shell32.Shell();         // Move this to class scope
                 lnkPath = System.IO.Path.GetFullPath(lnkPath);
-                var dir = shl.NameSpace(System.IO.Path.GetDirectoryName(lnkPath));
-                var itm = dir.Items().Item(System.IO.Path.GetFileName(lnkPath));
-                Shell32.ShellLinkObject lnk = null;
+                //var dir = shl.NameSpace(System.IO.Path.GetDirectoryName(lnkPath));
+                //var itm = dir.Items().Item(System.IO.Path.GetFileName(lnkPath));
+                //Shell32.ShellLinkObject lnk = null;
+                IWshShortcut Shortcut = null;
                 try
                 {
                     /* This fails with a security exception if the object is a link and the user 
                      * does not have full control rights
                      */
-
-                    lnk = (Shell32.ShellLinkObject)itm.GetLink;
+                    UserFileAccessRights rights = new UserFileAccessRights(lnkPath);
+                    if (rights.canReadAndExecute())
+                    {
+                        WshShell shell = new WshShell(); //Create a new WshShell Interface
+                        Shortcut = (IWshShortcut)shell.CreateShortcut(lnkPath); //Link the interface to our shortcut
+                    }
+                    else
+                        WriteProgramLog("Do not have permission to read link file: " + lnkPath);
+                    //lnk = (Shell32.ShellLinkObject)itm.GetLink;
                 }
                 catch (Exception e)
                 {
@@ -281,11 +289,11 @@ namespace KickOff
                 }
                 finally
                 {
-                    if( null != lnk )
-                        link = lnk.Target.Path;
+                    //if( null != lnk ) link = lnk.Target.Path;
+                    if (null != Shortcut) 
+                        link = Shortcut.TargetPath;
                 }
-
-                
+                                
                 //link = lnk.Path;
                 //var x = (Shell32.FolderItem)itm.Application;
                 //link = x.Application;

@@ -235,26 +235,33 @@ namespace KickOff
         private static IconBitMap GetBitmapFromFileIcon(string file, int iconIndex)
         {
             IconBitMap ibm = null;
-
-            // if a directory path is used just get the system icon
-            if (File.GetAttributes(file).HasFlag(FileAttributes.Directory))
+            try
             {
-                // get a 'built in' icon for a folder
-                try
+                // if a directory path is used just get the system icon
+                if (File.GetAttributes(file).HasFlag(FileAttributes.Directory))
                 {
-                    ibm = ExtractIconBitMapFromFile(
-                        Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\shell32.dll"), 4 );
-                }
-                catch
-                {
-                    ibm = null; // ExtractIconBitMap(SystemIcons.Error);
-                }
+                    // get a 'built in' icon for a folder
+                    try
+                    {
+                        ibm = ExtractIconBitMapFromFile(
+                            Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\shell32.dll"), 4);
+                    }
+                    catch
+                    {
+                        ibm = null; // ExtractIconBitMap(SystemIcons.Error);
+                    }
 
+                }
+                else
+                {
+                    ibm = ExtractICO(file, iconIndex);
+                    //ibm = ExtractICO(file, USE_MAIN_ICON);
+                }
             }
-            else
+            catch (Exception e)
             {
-                ibm = ExtractICO(file, iconIndex);
-                //ibm = ExtractICO(file, USE_MAIN_ICON);
+                ibm = ExtractIconBitMap(SystemIcons.Error);
+                lnkio.WriteProgramLog("Did not get a bitmap source from the file: " + file + " System Error: " + e.Message);
             }
 
             if (null == ibm)
@@ -281,6 +288,7 @@ namespace KickOff
                 {
                     //System.Drawing.Icon ico = System.Drawing.Icon.ExtractAssociatedIcon(file);
                     ibm = ExtractIconBitMap(System.Drawing.Icon.ExtractAssociatedIcon(file));
+                    //ibm = GetBitmapFromFileIcon(file, USE_MAIN_ICON);
                 }
                 else
                 {
@@ -289,13 +297,33 @@ namespace KickOff
             }
             catch( Exception e )
             {
-                ibm = ExtractIconBitMap(SystemIcons.Error);
-                lnkio.WriteProgramLog("Did not get a bitmap source from the file: " + file + " System Error: " + e.Message);
+                if (File.GetAttributes(file).HasFlag(FileAttributes.Directory))
+                {
+                    // get a 'built in' icon for a folder
+                    try
+                    {
+                        ibm = ExtractIconBitMapFromFile(
+                            Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\shell32.dll"), 4);
+                    }
+                    catch
+                    {
+                        ibm = null; // ExtractIconBitMap(SystemIcons.Error);
+                    }
+                }
+                else
+                {
+                    ibm = ExtractIconBitMap(SystemIcons.Error);
+                    lnkio.WriteProgramLog("Did not get a bitmap source from the file: " + file + " System Error: " + e.Message);
+                }
             }
 
             if (null == ibm)
+            {
+
                 lnkio.WriteProgramLog("Did not get a bitmap source from the file: " + file);
-            //throw new Exception("Did not get a bitmap source from the file: " + file);
+                ibm = ExtractIconBitMap(SystemIcons.Error);
+                //throw new Exception("Did not get a bitmap source from the file: " + file);
+            }
 
             return ibm;
         }

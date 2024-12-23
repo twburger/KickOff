@@ -63,12 +63,14 @@ namespace KickOff
         //private const Int32 WM_SYSCOMMAND = 0x112;
         private const Int32 MF_SEPARATOR = 0x800;
         private const Int32 MF_BYPOSITION = 0x400;
-        private const Int32 MF_STRING = 0x0;
+        //private const Int32 MF_STRING = 0x0;
         public const Int32 SettingsSysMenuID = 9000;
         public const Int32 AboutSysMenuID = 9001;
         public const Int32 CloseSysMenuID = 9002;
         public const Int32 AddDlgMenuID = 9003;
         public const Int32 DeleteDlgMenuID = 9004;
+        public const Int32 RestoreDlgMenuID = 9005;
+        public const Int32 HideDlgMenuID = 9006;
 
         internal static void ModifyMenu(this Window window)
         {
@@ -77,11 +79,13 @@ namespace KickOff
 
             /// Create our new System Menu items just before the Close menu item
             InsertMenu(systemMenuHandle, 5, MF_BYPOSITION | MF_SEPARATOR, 0, string.Empty); // <-- Add a menu seperator
-            InsertMenu(systemMenuHandle, 6, MF_BYPOSITION, AddDlgMenuID, "Add Dialog");
-            InsertMenu(systemMenuHandle, 7, MF_BYPOSITION, SettingsSysMenuID, "Settings");
-            InsertMenu(systemMenuHandle, 8, MF_BYPOSITION, AboutSysMenuID, "About");
-            InsertMenu(systemMenuHandle, 9, MF_BYPOSITION, CloseSysMenuID, "Close All");
+            InsertMenu(systemMenuHandle, 6, MF_BYPOSITION,  AddDlgMenuID, "Add Dialog");
+            InsertMenu(systemMenuHandle, 7, MF_BYPOSITION,  SettingsSysMenuID, "Settings");
+            InsertMenu(systemMenuHandle, 8, MF_BYPOSITION,  AboutSysMenuID, "About");
+            InsertMenu(systemMenuHandle, 9, MF_BYPOSITION,  CloseSysMenuID, "Close All and Quit");
             InsertMenu(systemMenuHandle, 10, MF_BYPOSITION, DeleteDlgMenuID, "Delete this window");
+            InsertMenu(systemMenuHandle, 11, MF_BYPOSITION, RestoreDlgMenuID,"Restore hidden windows");
+            InsertMenu(systemMenuHandle, 12, MF_BYPOSITION, HideDlgMenuID, "Hide this window");
 
             // Attach our WndProc handler to this Window
             //HwndSource source = HwndSource.FromHwnd(systemMenuHandle);
@@ -98,16 +102,18 @@ namespace KickOff
         //private WrapPanel MainPanel = new WrapPanel();
         //private DockPanel MainPanel = new DockPanel();
         //private Grid MainPanel;
-        private UniformGrid MainPanel = new UniformGrid();
+        private readonly UniformGrid MainPanel = new UniformGrid();
         private int ShortcutCounter = 0;
         private string ProgramState;
-        private ContextMenu shortcutCtxMenu = new ContextMenu();
-        private static char INI_SPLIT_CHAR = '^';
+        private readonly ContextMenu shortcutCtxMenu = new ContextMenu();
+        private static readonly char INI_SPLIT_CHAR = '^';
         public static int USE_MAIN_ICON = ico2bmap.USE_MAIN_ICON;
         private EventTrigger moe = null;
         private EventTrigger mle = null;
-        private static List<KO_Dialog> OpenDialogs = new List<KO_Dialog>();
-        private bool IsDeleted = false;
+        private static readonly List<KO_Dialog> OpenDialogs = new List<KO_Dialog>();
+        
+        public bool RestoreSave { get; set; }
+
 
         public KO_Dialog(string DlgParams)
         {
@@ -132,6 +138,9 @@ namespace KickOff
                 Name = "KickoffDlg_" + DateTime.Now.Ticks.ToString();
                 DlgParams = _dlgparams;
             }
+
+            // set saving the dialog state upon exit or close on
+            RestoreSave = true;
 
             // Windows logoff or shutdown
             Application.Current.SessionEnding += Current_SessionEnding;
@@ -182,15 +191,19 @@ namespace KickOff
 
             /// MENUS
             // Shortcut Right Click context menu
-            MenuItem miSC_ChangeICO = new MenuItem();
-            miSC_ChangeICO.Width = 160;
-            miSC_ChangeICO.Header = "_Change Icon";
+            MenuItem miSC_ChangeICO = new MenuItem
+            {
+                Width = 160,
+                Header = "_Change Icon"
+            };
             miSC_ChangeICO.Click += MiSC_ChangeICO_Click;
             shortcutCtxMenu.Items.Add(miSC_ChangeICO);
 
-            MenuItem miSC_Delete = new MenuItem();
-            miSC_Delete.Width = 120;
-            miSC_Delete.Header = "_Delete";
+            MenuItem miSC_Delete = new MenuItem
+            {
+                Width = 120,
+                Header = "_Delete"
+            };
             miSC_Delete.Click += MiSC_Delete_Click;
             shortcutCtxMenu.Items.Add(miSC_Delete);
 
@@ -250,8 +263,8 @@ namespace KickOff
             Shortcut sc = cm.PlacementTarget as Shortcut;
             string[] iconsourcefiles = new string[] {
                 // provide a path to the original icon
-                sc.lnkData.ShortcutAddress,
-                sc.lnkData.OriginalTargetPath,
+                sc.LnkData.ShortcutAddress,
+                sc.LnkData.OriginalTargetPath,
                 Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\shell32.dll"),
                 Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\imageres.dll"),
                 Environment.ExpandEnvironmentVariables(@"%SystemRoot%\system32\DDORes.dll")
@@ -265,34 +278,35 @@ namespace KickOff
                 if (true == iconSelector.ShowDialog())
                 {
                     //var x = iconSelector.DialogResult;
-                    sc.lnkData.IconIndex = iconSelector.idxIcon;
-                    sc.lnkData.IconSourceFilePath = iconsourcefiles[iconSelector.idxFile];
+                    sc.LnkData.IconIndex = iconSelector.idxIcon;
+                    sc.LnkData.IconSourceFilePath = iconsourcefiles[iconSelector.idxFile];
 
                     // set the new icon
                     IconBitMap ibm = null;
-                    if (sc.lnkData.IconIndex != USE_MAIN_ICON)
-                        ibm = ico2bmap.ExtractICO(sc.lnkData.IconSourceFilePath, sc.lnkData.IconIndex);
+                    if (sc.LnkData.IconIndex != USE_MAIN_ICON)
+                        ibm = ico2bmap.ExtractICO(sc.LnkData.IconSourceFilePath, sc.LnkData.IconIndex);
                     if (null == ibm)
-                        ibm = ico2bmap.ExtractIconBitMap(System.Drawing.Icon.ExtractAssociatedIcon(sc.lnkData.IconSourceFilePath));
+                        ibm = ico2bmap.ExtractIconBitMap(System.Drawing.Icon.ExtractAssociatedIcon(sc.LnkData.IconSourceFilePath));
                     sc.Source = ibm.bitmapsource;
                     sc.Width = ibm.BitmapSize;
                 }
             }
         }
 
-        private const Int32 WM_SYSTEMMENU = 0xa4; // 164
-        private const Int32 WP_SYSTEMMENU = 0x02; // 2
+        //private const Int32 WM_SYSTEMMENU = 0xa4; // 164
+        //private const Int32 WP_SYSTEMMENU = 0x02; // 2
         private const Int32 WM_SYSCOMMAND = 0x112; // 274 <------ THIS message is sent when menu item selected in Window menu
-        private const Int32 WM_NCRBUTTONDOWN = 0xA4; //164
-        private const Int32 WM_NCLBUTTONDOWN = 0xA1; //161
-        private const Int32 WM_CONTEXTMENU = 0x7B; //123
-        private const Int32 WM_ENTERIDLE = 0x121; //289
-        private const Int32 WM_INITMENUPOPUP = 0x0117; // 279
-        private const Int32 WM_MENUSELECT = 0x011f; //  <-------- Fires when mouse is over item
-        private const Int32 MF_MOUSESELECT = 0x00008000; //32768
-        private const Int32 MF_SYSMENU = 0x00002000; //8192
+        //private const Int32 WM_NCRBUTTONDOWN = 0xA4; //164
+        //private const Int32 WM_NCLBUTTONDOWN = 0xA1; //161
+        //private const Int32 WM_CONTEXTMENU = 0x7B; //123
+        //private const Int32 WM_ENTERIDLE = 0x121; //289
+        //private const Int32 WM_INITMENUPOPUP = 0x0117; // 279
+        //private const Int32 WM_MENUSELECT = 0x011f; //  <-------- Fires when mouse is over item
+        //private const Int32 MF_MOUSESELECT = 0x00008000; //32768
+        //private const Int32 MF_SYSMENU = 0x00002000; //8192
 
-        private void debugout(int msg, IntPtr wParam, IntPtr lParam)
+        /*
+        private void Debugout(int msg, IntPtr wParam, IntPtr lParam)
         {
             try
             {
@@ -310,6 +324,8 @@ namespace KickOff
             }
 
         }
+        */
+
         int GetIntUnchecked(IntPtr value)
         {
             return IntPtr.Size == 8 ? unchecked((int)value.ToInt64()) : value.ToInt32();
@@ -334,7 +350,19 @@ namespace KickOff
                         int loP = Low16(wParam); //menu item
                         MessageBoxResult mbr;
 
-                        switch (loP)
+                        // Cant hide or delete the only remaining dialog
+                        if (WindowExtensions.DeleteDlgMenuID == loP || WindowExtensions.HideDlgMenuID == loP)
+                        {
+                            int visiblecount = OpenDialogs.Count(element => element.IsVisible);
+                            if (OpenDialogs.Count < 2 || visiblecount < 2)
+                            {
+                                MessageBox.Show("Invalid function", "You cannot do this with a single dialog", MessageBoxButton.OK, MessageBoxImage.Information);
+                                handled = true;
+                                break;
+                            }
+                        }
+
+                            switch (loP)
                         {
                             case WindowExtensions.SettingsSysMenuID:
                                 MessageBox.Show("Settingstext", "Caption Settings", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -359,7 +387,7 @@ namespace KickOff
                                 break;
 
                             case WindowExtensions.CloseSysMenuID:
-                                mbr = MessageBox.Show("Close all dialogs?", "Close App", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                                mbr = MessageBox.Show("Close all dialogs and quit?", "Close App", MessageBoxButton.OKCancel, MessageBoxImage.Question);
 
                                 if (mbr == MessageBoxResult.OK)
                                 {
@@ -372,16 +400,45 @@ namespace KickOff
                                 break;
 
                             case WindowExtensions.DeleteDlgMenuID:
-                                mbr = MessageBox.Show("Delete Dialog", "Delete this dialog?", MessageBoxButton.OKCancel, MessageBoxImage.Information);
+                                mbr = MessageBox.Show("Delete Dialog", "Delete this dialog (not reversable)?", MessageBoxButton.OKCancel, MessageBoxImage.Information);
                                 if (mbr == MessageBoxResult.OK)
                                 {
-                                    //Close this dialog and remove it from the restore list
-                                    this.IsDeleted = true;
-                                    this.Close();
+                                    // remove the dialog from the internal list
+                                    OpenDialogs.Remove(this);
+
+                                    //Close this dialog
+                                    // disable saving the dialog restore values when closed
+                                    this.RestoreSave = false;
+                                    this.Close();  //close does not destroy the dialog
                                 }
                                 handled = true;
                                 break;
 
+                            case WindowExtensions.HideDlgMenuID:
+                                mbr = MessageBox.Show("Hide Dialog", "Hide this dialog?", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                                if (mbr == MessageBoxResult.OK)
+                                {
+                                    // Hide this dialog
+                                    this.Hide();
+                                }
+                                handled = true;
+                                break;
+
+                            case WindowExtensions.RestoreDlgMenuID:
+                                mbr = MessageBox.Show("Restore all", "Restore all hidden dialogs?", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                                if (mbr == MessageBoxResult.OK)
+                                {
+                                    // restore the window
+                                    foreach (Window w in Application.Current.Windows)
+                                    {
+                                        if (!w.IsVisible)
+                                        {
+                                            w.Show();
+                                        }
+                                    }
+                                }
+                                handled = true;
+                                break;
                         }
                         break;
                 }
@@ -424,7 +481,7 @@ namespace KickOff
 
         public void SaveProgramState()
         {
-            if (!this.IsDeleted)
+            if (RestoreSave)
             {
                 /// Get the current main window size and position, and the 
                 /// paths to the shortcuts.
@@ -447,13 +504,14 @@ namespace KickOff
                 while (scs.MoveNext())
                 {
                     Shortcut s = (Shortcut)scs.Current;
-                    ProgramState += s.lnkData.ShortcutAddress + INI_SPLIT_CHAR;
-                    ProgramState += s.lnkData.IconSourceFilePath + INI_SPLIT_CHAR;
-                    ProgramState += s.lnkData.IconIndex.ToString() + crlf;
+                    ProgramState += s.LnkData.ShortcutAddress + INI_SPLIT_CHAR;
+                    ProgramState += s.LnkData.IconSourceFilePath + INI_SPLIT_CHAR;
+                    ProgramState += s.LnkData.IconIndex.ToString() + crlf;
                 }
 
                 lnkio.WriteProgramState(ProgramState);
             }
+
             //throw new NotImplementedException();
         }
 
@@ -596,10 +654,10 @@ namespace KickOff
             {
                 ShortcutDropData sdd = (ShortcutDropData) eDropEvent.Data.GetData(SC_DROP_FORMAT);
                 Shortcut s = sdd._parent.Children[sdd._idx] as Shortcut;
-                string[] FileList = new string[] { s.lnkData.ShortcutAddress};
+                string[] FileList = new string[] { s.LnkData.ShortcutAddress};
 
                 // a drop onto the icon also sets off a drop onto a dialog - do not reproduce the icon
-                var items = Shortcuts.Where(x => x.lnkData.ShortcutAddress == FileList[0]);
+                var items = Shortcuts.Where(x => x.LnkData.ShortcutAddress == FileList[0]);
                 if (items.Count() == 0)
                 {
                     CreateShortCuts(FileList);
@@ -631,8 +689,8 @@ namespace KickOff
 
                     /// Set the image bitmap
                     /// 
-                    sc.Width = sc.lnkData.icoBitmap.BitmapSize; //.Bitmap.bitmap.Width;
-                    sc.Source = sc.lnkData.icoBitmap.bitmapsource; //.Bitmap.bitmapsource;
+                    sc.Width = sc.LnkData.icoBitmap.BitmapSize; //.Bitmap.bitmap.Width;
+                    sc.Source = sc.LnkData.icoBitmap.bitmapsource; //.Bitmap.bitmapsource;
                     sc.Visibility = Visibility.Visible;
 
 
@@ -643,17 +701,18 @@ namespace KickOff
                     sc.Triggers.Add(mle);
 
                     // Add a popup to display the link name when the mouse is over
-                    TextBlock popupText = new TextBlock();
-                    // Description is Comment 
-                    popupText.Text =
-                    System.IO.Path.GetFileNameWithoutExtension(sc.lnkData.ShortcutAddress);
-                    //if (popupText.Text != sc.lnkData.Description)                        popupText.Text += "\n" + sc.lnkData.Description;
-                    popupText.Background = System.Windows.Media.Brushes.AntiqueWhite;
-                    popupText.Foreground = System.Windows.Media.Brushes.Black;
-                    sc.lnkPopup.Child = popupText;
-                    sc.lnkPopup.PlacementTarget = sc;
-                    sc.lnkPopup.IsOpen = false;
-                    sc.lnkPopup.Placement = PlacementMode.Bottom; //.MousePoint;//.Center;
+                    TextBlock popupText = new TextBlock
+                    {
+                        // Description is Comment 
+                        Text = System.IO.Path.GetFileNameWithoutExtension(sc.LnkData.ShortcutAddress),
+                        //if (popupText.Text != sc.lnkData.Description)                        popupText.Text += "\n" + sc.lnkData.Description;
+                        Background = System.Windows.Media.Brushes.AntiqueWhite,
+                        Foreground = System.Windows.Media.Brushes.Black
+                    };
+                    sc.LnkPopup.Child = popupText;
+                    sc.LnkPopup.PlacementTarget = sc;
+                    sc.LnkPopup.IsOpen = false;
+                    sc.LnkPopup.Placement = PlacementMode.Bottom; //.MousePoint;//.Center;
 
                     // add handlers for popup
                     sc.MouseEnter += SCI_MouseEnter; // turn on popup
@@ -776,7 +835,7 @@ namespace KickOff
 
         private void SC_dragOver(object sender, DragEventArgs e)
         {
-            Shortcut trg = (Shortcut)sender;
+            //Shortcut trg = (Shortcut)sender;
 
             if (e.Data.GetDataPresent(SC_DROP_FORMAT) )
             {
@@ -815,7 +874,7 @@ namespace KickOff
         }
 
         private System.Windows.Point startPoint;
-        private static string SC_DROP_FORMAT = "Shortcut";
+        private static readonly string SC_DROP_FORMAT = "Shortcut";
 
         private void SC_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -865,13 +924,13 @@ namespace KickOff
         }
         private void SCI_MouseEnter(object sender, MouseEventArgs e)
         {
-            ((Shortcut)sender).lnkPopup.IsOpen = true;
+            ((Shortcut)sender).LnkPopup.IsOpen = true;
             Mouse.OverrideCursor = Cursors.Hand;
             e.Handled = false;
         }
         private void SCI_MouseLeave(object sender, MouseEventArgs e)
         {
-            ((Shortcut)sender).lnkPopup.IsOpen = false;
+            ((Shortcut)sender).LnkPopup.IsOpen = false;
             Mouse.OverrideCursor = Cursors.Arrow;
             e.Handled = false;
         }
@@ -886,7 +945,7 @@ namespace KickOff
                         Process p = null;
 
                         // This is this a reference .appref-ms file or an URL or a data file
-                        if (scLink.lnkData.bTargetIsFile || scLink.lnkData.bIsReference)
+                        if (scLink.LnkData.bTargetIsFile || scLink.LnkData.bIsReference)
                         {
                             //if( scLink.lnkData.bIsReference ) {
                             //string n = @"rundll32.exe dfshim.dll,ShOpenVerbApplication http://github-windows.s3.amazonaws.com/GitHub.application#GitHub.application,Culture=neutral,PublicKeyToken=317444273a93ac29,processorArchitecture=x86";
@@ -894,24 +953,24 @@ namespace KickOff
                             //Uri a = new Uri(n);
                             //string b = a.ToString(); }
 
-                            p = Process.Start(scLink.lnkData.ShortcutAddress);  // just send the link to the OS
+                            p = Process.Start(scLink.LnkData.ShortcutAddress);  // just send the link to the OS
                         }
                         else
                         {
                             // Prepare the process to run
                             ProcessStartInfo start = new ProcessStartInfo();
                             // Enter in the command line arguments, everything you would enter after the executable name itself
-                            if (scLink.lnkData.bTargetIsDirectory)
+                            if (scLink.LnkData.bTargetIsDirectory)
                             {
-                                start.Arguments = scLink.lnkData.TargetPath;
+                                start.Arguments = scLink.LnkData.TargetPath;
                                 start.FileName = "explorer.exe";
-                                start.WorkingDirectory = scLink.lnkData.TargetPath;
+                                start.WorkingDirectory = scLink.LnkData.TargetPath;
                             }
                             else
                             {
-                                start.Arguments = scLink.lnkData.Arguments;
+                                start.Arguments = scLink.LnkData.Arguments;
                                 // Enter the executable to run, including the complete path
-                                start.FileName = scLink.lnkData.TargetPath;
+                                start.FileName = scLink.LnkData.TargetPath;
                                 /// For cases where the starting working directory is like this:  Environment.ExpandEnvironmentVariables("%HOMEDRIVE%%HOMEPATH%");
                                 start.WorkingDirectory = string.Empty; //Environment.ExpandEnvironmentVariables(scLink.lnkData.WorkingDirectory);
                                 //start.WorkingDirectory = System.IO.Path.GetFullPath(scLink.lnkData.WorkingDirectory);
@@ -1094,12 +1153,12 @@ namespace KickOff
 
                     Shortcut sc = new Shortcut
                     {
-                        lnkData = lnk,
-                        lnkPopup = new Popup(),
+                        LnkData = lnk,
+                        LnkPopup = new Popup(),
                         IsRendered = false
                     };
 
-                    var items = Shortcuts.Where(x => x.lnkData.ShortcutAddress == FilePath);
+                    var items = Shortcuts.Where(x => x.LnkData.ShortcutAddress == FilePath);
 
                     if (items.Count() == 0) // the link imported is not in the existing list so add it
                     {
@@ -1133,9 +1192,9 @@ namespace KickOff
             Margin = new Thickness(4); // all same// (2, 2, 2, 2); //left,top,right,bottom
         }
 
-        public LnkData lnkData { get; set; }
+        public LnkData LnkData { get; set; }
         public bool IsRendered { get; set; }
-        public Popup lnkPopup { get; set; }
+        public Popup LnkPopup { get; set; }
         public int SortOrder { get; set; }
     }
 
